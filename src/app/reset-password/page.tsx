@@ -2,54 +2,37 @@
 
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-export default function LoginPage() {
-  const router = useRouter()
+export default function ResetPasswordPage() {
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    setSuccess(false)
     setLoading(true)
 
-    const { data: signInData, error: signInError } =
-      await supabase.auth.signInWithPassword({ email, password })
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email,
+      {
+        redirectTo: `${window.location.origin}/update-password`,
+      }
+    )
 
-    if (signInError || !signInData.user) {
-      setError(signInError?.message ?? 'Unable to sign in.')
+    if (resetError) {
+      setError(resetError.message)
       setLoading(false)
       return
     }
 
-    // Look up role from profiles to decide where to land
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', signInData.user.id)
-      .single()
-
-    if (profileError || !profile) {
-      setError('Signed in, but no profile was found for this user.')
-      setLoading(false)
-      return
-    }
-
-    const role = (profile as { role: string }).role
-    if (role === 'admin' || role === 'csm') {
-      router.replace('/dashboard')
-    } else if (role === 'client') {
-      router.replace('/my-progress')
-    } else {
-      router.replace('/')
-    }
-    router.refresh()
+    setSuccess(true)
+    setLoading(false)
   }
 
   return (
@@ -68,11 +51,14 @@ export default function LoginPage() {
 
       <div
         className="glass-panel w-full max-w-[420px] p-8"
-        style={{
-          animation: 'kst-fade-up 0.5s ease-out both',
-        }}
+        style={{ animation: 'kst-fade-up 0.5s ease-out both' }}
       >
-        <h2 className="text-kst-white text-2xl font-semibold mb-6">Sign In</h2>
+        <h2 className="text-kst-white text-2xl font-semibold mb-1">
+          Reset Password
+        </h2>
+        <p className="text-kst-muted text-sm mb-6">
+          Enter your email and we&apos;ll send you a reset link
+        </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
@@ -82,40 +68,36 @@ export default function LoginPage() {
             placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            disabled={loading}
+            disabled={loading || success}
             className="w-full h-12 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white placeholder:text-kst-muted focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors disabled:opacity-60"
           />
-
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={loading}
-            className="w-full h-12 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white placeholder:text-kst-muted focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors disabled:opacity-60"
-          />
-
-          <Link
-            href="/reset-password"
-            className="self-end -mt-1 text-xs text-kst-muted hover:text-kst-gold transition-colors"
-          >
-            Forgot password?
-          </Link>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || success}
             className="w-full h-12 mt-2 rounded-xl bg-kst-gold text-kst-black font-semibold tracking-wide hover:bg-kst-gold-light transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_8px_32px_rgba(201,168,76,0.18)]"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Sending...' : 'Send Reset Link'}
           </button>
 
+          {success && (
+            <p className="text-kst-success text-sm text-center mt-1">
+              Check your email for the reset link
+            </p>
+          )}
           {error && (
             <p className="text-kst-error text-sm text-center mt-1">{error}</p>
           )}
         </form>
+
+        <div className="mt-6 text-center">
+          <Link
+            href="/login"
+            className="text-xs text-kst-muted hover:text-kst-gold transition-colors"
+          >
+            Back to Sign In
+          </Link>
+        </div>
       </div>
 
       <style>{`

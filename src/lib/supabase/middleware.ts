@@ -1,7 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PREFIXES = ['/login', '/auth']
+const PUBLIC_PREFIXES = [
+  '/login',
+  '/auth',
+  '/reset-password',
+  '/update-password',
+]
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PREFIXES.some(
