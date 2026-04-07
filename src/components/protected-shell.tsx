@@ -1,0 +1,177 @@
+'use client'
+
+import { useState, type ReactNode } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { LayoutDashboard, Users, CheckSquare, Menu, X } from 'lucide-react'
+import { SignOutButton } from '@/components/sign-out-button'
+import { cn } from '@/lib/utils'
+import type { Role } from '@/lib/supabase/get-user'
+
+interface ProtectedShellProps {
+  fullName: string
+  email: string
+  role: Role
+  children: ReactNode
+}
+
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+}
+
+function getNavItems(role: Role): NavItem[] {
+  if (role === 'client') {
+    return [{ href: '/my-progress', label: 'My Progress', icon: CheckSquare }]
+  }
+  return [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '#', label: 'Clients', icon: Users },
+  ]
+}
+
+function initialsOf(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) return '?'
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
+}
+
+export function ProtectedShell({
+  fullName,
+  email,
+  role,
+  children,
+}: ProtectedShellProps) {
+  const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  const navItems = getNavItems(role)
+  const displayName = fullName || email
+  const initials = initialsOf(displayName)
+
+  return (
+    <div className="min-h-screen flex flex-col bg-kst-black">
+      {/* Top Bar */}
+      <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-kst-dark border-b border-white/[0.06] z-30">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMobileOpen((v) => !v)}
+            className="md:hidden p-2 -ml-2 text-kst-white"
+            aria-label="Toggle navigation"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+          <Link
+            href="/"
+            className="text-3xl text-kst-gold tracking-tight"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            KST
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:inline text-kst-muted text-sm">
+            {displayName}
+          </span>
+          <div className="w-9 h-9 rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center text-xs font-semibold bg-white/[0.02]">
+            {initials}
+          </div>
+        </div>
+      </header>
+
+      <div className="flex flex-1 min-h-0">
+        {/* Sidebar (desktop) */}
+        <aside className="hidden md:flex w-[260px] flex-col bg-[#111111] border-r border-white/[0.06]">
+          <SidebarContent navItems={navItems} pathname={pathname} />
+        </aside>
+
+        {/* Sidebar (mobile overlay) */}
+        {mobileOpen && (
+          <div className="md:hidden fixed inset-0 z-40 flex">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+              aria-hidden
+            />
+            <aside className="relative w-[260px] bg-[#111111] border-r border-white/[0.06] flex flex-col">
+              <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06]">
+                <span
+                  className="text-2xl text-kst-gold"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  KST
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  className="p-2 text-kst-white"
+                  aria-label="Close navigation"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <SidebarContent
+                navItems={navItems}
+                pathname={pathname}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </aside>
+          </div>
+        )}
+
+        {/* Main */}
+        <main className="flex-1 min-w-0 p-6 md:p-8 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+    </div>
+  )
+}
+
+function SidebarContent({
+  navItems,
+  pathname,
+  onNavigate,
+}: {
+  navItems: NavItem[]
+  pathname: string
+  onNavigate?: () => void
+}) {
+  return (
+    <div className="flex flex-col flex-1 py-6">
+      <nav className="flex flex-col gap-1 px-3">
+        {navItems.map((item) => {
+          const active =
+            item.href !== '#' &&
+            (pathname === item.href || pathname.startsWith(`${item.href}/`))
+          const Icon = item.icon
+          return (
+            <Link
+              key={`${item.label}-${item.href}`}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-lg text-sm border-l-2 transition-colors',
+                active
+                  ? 'border-kst-gold text-kst-gold bg-kst-gold/[0.06]'
+                  : 'border-transparent text-kst-muted hover:text-kst-white hover:bg-white/5'
+              )}
+            >
+              <Icon size={16} />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
+
+      <div className="mt-auto px-3">
+        <SignOutButton variant="link" />
+      </div>
+    </div>
+  )
+}
