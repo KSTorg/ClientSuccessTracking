@@ -293,6 +293,17 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
             />
           </Field>
 
+          <Field label="Notes">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              disabled={loading}
+              rows={3}
+              placeholder="Optional context for the team..."
+              className={cn(inputClass, 'h-auto py-3 resize-none')}
+            />
+          </Field>
+
           <div>
             <span className="block text-xs uppercase tracking-wider text-kst-muted mb-2">
               Client Team
@@ -333,28 +344,19 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
                   setClientTeam((t) => ({ ...t, organic: id }))
                 }
               />
-              <TeamSlotPicker
-                label="Sales"
-                match="sales"
-                value={clientTeam.sales}
-                teamMembers={csms}
-                onChange={(id) =>
-                  setClientTeam((t) => ({ ...t, sales: id }))
-                }
-              />
+              <div className="sm:col-span-2">
+                <TeamSlotPicker
+                  label="Sales"
+                  match="sales"
+                  value={clientTeam.sales}
+                  teamMembers={csms}
+                  onChange={(id) =>
+                    setClientTeam((t) => ({ ...t, sales: id }))
+                  }
+                />
+              </div>
             </div>
           </div>
-
-          <Field label="Notes">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              disabled={loading}
-              rows={3}
-              placeholder="Optional context for the team..."
-              className={cn(inputClass, 'h-auto py-3 resize-none')}
-            />
-          </Field>
 
           <Field label="Password" error={fieldErrors.password}>
             <input
