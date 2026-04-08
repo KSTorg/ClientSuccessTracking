@@ -6,6 +6,7 @@ interface InviteBody {
   email?: string
   fullName?: string
   role?: 'admin' | 'csm' | 'client'
+  password?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -50,10 +51,17 @@ export async function POST(request: NextRequest) {
   const email = body.email?.trim().toLowerCase()
   const fullName = body.fullName?.trim()
   const role = body.role
+  const password = body.password
 
-  if (!email || !fullName || !role) {
+  if (!email || !fullName || !role || !password) {
     return NextResponse.json(
-      { error: 'email, fullName, and role are required' },
+      { error: 'email, fullName, role, and password are all required' },
+      { status: 400 }
+    )
+  }
+  if (password.length < 8) {
+    return NextResponse.json(
+      { error: 'Password must be at least 8 characters' },
       { status: 400 }
     )
   }
@@ -88,13 +96,11 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  // Compute redirect origin from the incoming request
-  const origin = request.nextUrl.origin
-
-  // ── 4) Create the auth user (bypasses "signups disabled") ──
+  // ── 4) Create the auth user with the password the admin chose ──
   const { data: created, error: createErr } =
     await supabaseAdmin.auth.admin.createUser({
       email,
+      password,
       email_confirm: true,
       user_metadata: { full_name: fullName, role },
     })
@@ -113,30 +119,5 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── 5) Send the recovery link so they can set their password ──
-  const { data: linkData, error: linkErr } =
-    await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo: `${origin}/update-password`,
-      },
-    })
-
-  if (linkErr) {
-    console.error(
-      '[api/invite] generateLink error (user was still created):',
-      linkErr
-    )
-    // Don't fail the whole flow — the user exists, the inviter can resend
-    return NextResponse.json({
-      userId: created.user.id,
-      warning: `User created but recovery link failed: ${linkErr.message}`,
-    })
-  }
-
-  return NextResponse.json({
-    userId: created.user.id,
-    actionLink: linkData?.properties?.action_link ?? null,
-  })
+  return NextResponse.json({ userId: created.user.id })
 }

@@ -1,16 +1,16 @@
 import type { Role } from '@/lib/supabase/get-user'
 
 /**
- * Invite a new user via the server-side /api/invite route, which uses
- * the Supabase admin API (service_role key) so it bypasses the
- * "Allow new users to sign up" project setting and any rate limits on
- * the public signUp endpoint. The route also enforces auth (must be a
- * signed-in admin/csm user) and role-scoped permissions.
+ * Invite a new user via the server-side /api/invite route. The route
+ * uses the Supabase admin API (service_role key) to create the user
+ * with the password the admin chose, no confirmation email required.
+ * The admin then shares the password with the invitee directly.
  */
 export async function inviteUser(params: {
   email: string
   fullName: string
   role: Role
+  password: string
 }): Promise<{ userId: string }> {
   console.log('[invite] POST /api/invite', {
     email: params.email,
@@ -25,10 +25,11 @@ export async function inviteUser(params: {
       email: params.email,
       fullName: params.fullName,
       role: params.role,
+      password: params.password,
     }),
   })
 
-  let data: { userId?: string; error?: string; warning?: string } = {}
+  let data: { userId?: string; error?: string } = {}
   try {
     data = await res.json()
   } catch {
@@ -41,9 +42,6 @@ export async function inviteUser(params: {
   }
   if (!data.userId) {
     throw new Error('Invite succeeded but no userId was returned')
-  }
-  if (data.warning) {
-    console.warn('[invite] warning from server:', data.warning)
   }
 
   return { userId: data.userId }

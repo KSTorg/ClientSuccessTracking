@@ -418,6 +418,7 @@ function InviteTeamModal({
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('csm')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -437,12 +438,17 @@ function InviteTeamModal({
       setError('Name and email are required.')
       return
     }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
     setLoading(true)
     try {
       await inviteUser({
         email: email.trim(),
         fullName: fullName.trim(),
         role,
+        password,
       })
       setSuccess(true)
       setTimeout(onInvited, 1500)
@@ -478,7 +484,7 @@ function InviteTeamModal({
 
         {success ? (
           <p className="text-kst-success text-sm">
-            Invite sent! They&apos;ll receive an email to set their password.
+            Account created. Share the password with them directly.
           </p>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -504,6 +510,20 @@ function InviteTeamModal({
             </Field>
             <Field label="Role">
               <RolePicker value={role} onChange={setRole} disabled={loading} />
+            </Field>
+            <Field label="Password">
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min 8 characters"
+                autoComplete="new-password"
+                disabled={loading}
+                className={inputClass}
+              />
+              <span className="text-[11px] text-kst-muted mt-1">
+                You&apos;ll share this with them directly — no email is sent.
+              </span>
             </Field>
 
             {error && <p className="text-kst-error text-sm">{error}</p>}

@@ -103,6 +103,8 @@ export function ContactsSection({
   const [addOpen, setAddOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [invitePromptFor, setInvitePromptFor] =
+    useState<ClientContact | null>(null)
   const migratedRef = useRef(false)
 
   // Auto-migrate legacy contact_name/email into client_contacts
@@ -213,7 +215,7 @@ export function ContactsSection({
     router.refresh()
   }
 
-  async function sendLoginInvite(contact: ClientContact) {
+  async function sendLoginInvite(contact: ClientContact, password: string) {
     setBusyId(contact.id)
     setError(null)
     try {
@@ -221,6 +223,7 @@ export function ContactsSection({
         email: contact.email,
         fullName: contact.full_name,
         role: 'client',
+        password,
       })
       // Mark the contact as having a login + link the user_id
       await supabase
@@ -244,9 +247,11 @@ export function ContactsSection({
             : c
         )
       )
+      setInvitePromptFor(null)
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send invite.')
+      throw err
     } finally {
       setBusyId(null)
     }
@@ -277,10 +282,16 @@ export function ContactsSection({
     let next = inserted as ClientContact
 
     if (input.send_invite) {
+      if (!input.password || input.password.length < 8) {
+        throw new Error(
+          'Password must be at least 8 characters when sending a login invite.'
+        )
+      }
       const { userId } = await inviteUser({
         email: input.email.trim(),
         fullName: input.full_name.trim(),
         role: 'client',
+        password: input.password,
       })
       await supabase
         .from('client_contacts')
@@ -367,7 +378,7 @@ export function ContactsSection({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => sendLoginInvite(c)}
+                    onClick={() => setInvitePromptFor(c)}
                     disabled={busyId === c.id}
                     className="text-[11px] px-2.5 h-7 rounded-full border border-kst-gold/60 text-kst-gold hover:bg-kst-gold/10 transition-colors disabled:opacity-60"
                   >
@@ -379,7 +390,7 @@ export function ContactsSection({
                   contact={c}
                   busy={busyId === c.id}
                   onSetPrimary={() => setPrimary(c)}
-                  onSendInvite={() => sendLoginInvite(c)}
+                  onSendInvite={() => setInvitePromptFor(c)}
                   onRemove={() => removeContact(c)}
                 />
               </div>
@@ -395,6 +406,14 @@ export function ContactsSection({
             await addContact(input)
             setAddOpen(false)
           }}
+        />
+      )}
+
+      {invitePromptFor && (
+        <LoginInvitePasswordModal
+          contact={invitePromptFor}
+          onCancel={() => setInvitePromptFor(null)}
+          onSubmit={(password) => sendLoginInvite(invitePromptFor, password)}
         />
       )}
     </div>
@@ -516,6 +535,7 @@ interface AddContactInput {
   phone: string
   role: ContactRole
   send_invite: boolean
+  password?: string
 }
 
 function AddContactModal({
@@ -530,6 +550,7 @@ function AddContactModal({
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<ContactRole>('owner')
   const [sendInvite, setSendInvite] = useState(false)
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -548,6 +569,10 @@ function AddContactModal({
       setError('Name and email are required.')
       return
     }
+    if (sendInvite && password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
     setLoading(true)
     try {
       await onSubmit({
@@ -556,6 +581,7 @@ function AddContactModal({
         phone,
         role,
         send_invite: sendInvite,
+        password: sendInvite ? password : undefined,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add contact.')
@@ -632,6 +658,23 @@ function AddContactModal({
             />
             Send login invite immediately
           </label>
+
+          {sendInvite && (
+            <Field label="Password">
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min 8 characters"
+                autoComplete="new-password"
+                disabled={loading}
+                className={inputClass}
+              />
+              <span className="text-[11px] text-kst-muted mt-1">
+                You&apos;ll share this with them directly — no email is sent.
+              </span>
+            </Field>
+          )}
 
           {error && <p className="text-kst-error text-sm">{error}</p>}
 
@@ -732,3 +775,112 @@ function Field({
 
 const inputClass =
   'w-full h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white placeholder:text-kst-muted focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors disabled:opacity-60'
+
+// ───────────────────────────────────────────────────────────────────────────
+// Login invite password modal
+// ───────────────────────────────────────────────────────────────────────────
+
+function LoginInvitePasswordModal({
+  contact,
+  onCancel,
+  onSubmit,
+}: {
+  contact: ClientContact
+  onCancel: () => void
+  onSubmit: (password: string) => Promise<void>
+}) {
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    setLoading(true)
+    try {
+      await onSubmit(password)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create login.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
+        onClick={onCancel}
+      />
+      <div className="glass-panel relative w-full max-w-[460px] p-7 kst-fade-in">
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Close"
+          className="absolute top-4 right-4 p-2 text-kst-muted hover:text-kst-white transition-colors"
+        >
+          <X size={18} />
+        </button>
+        <h2 className="text-kst-white text-xl font-semibold mb-2">
+          Create login for {contact.full_name}
+        </h2>
+        <p className="text-kst-muted text-sm mb-6">
+          Set a password for{' '}
+          <span className="text-kst-white">{contact.email}</span>. You&apos;ll
+          share it with them directly — no email is sent.
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <Field label="Password">
+            <input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+              placeholder="Min 8 characters"
+              autoComplete="new-password"
+              disabled={loading}
+              className={inputClass}
+            />
+          </Field>
+
+          {error && <p className="text-kst-error text-sm">{error}</p>}
+
+          <div className="flex justify-end gap-3 mt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
+            >
+              <UserPlus size={14} />
+              {loading ? 'Creating…' : 'Create Login'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
