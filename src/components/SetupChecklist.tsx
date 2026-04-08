@@ -90,16 +90,8 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   completed: 'Completed',
 }
 
-function isRealUrl(url: string | null | undefined): boolean {
-  if (!url) return false
-  const trimmed = url.trim()
-  if (!trimmed) return false
-  if (trimmed.startsWith('#')) return false
-  return (
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('/')
-  )
+function hasUrl(url: string | null | undefined): boolean {
+  return !!url && url.trim().length > 0
 }
 
 function titleCase(s: string) {
@@ -316,25 +308,6 @@ export function SetupChecklist({
     return m
   }, [rows])
 
-  // Default stage open-state (set once after first load)
-  useEffect(() => {
-    if (loading || stages.length === 0) return
-    setOpenStages((prev) => {
-      if (Object.keys(prev).length > 0) return prev
-      const next: Record<string, boolean> = {}
-      stages.forEach((s, i) => {
-        const incomplete = s.topLevel.some((ct) => {
-          const eff = ct.task?.has_subtasks
-            ? effectiveParentStatus(ct, subtasksByParent.get(ct.task!.id) ?? [])
-            : ct.status
-          return eff !== 'completed'
-        })
-        next[s.stage.id] = i === 0 || incomplete
-      })
-      return next
-    })
-  }, [loading, stages, subtasksByParent])
-
   // Overall progress: top-level only
   const { totalTop, completedTop } = useMemo(() => {
     let total = 0
@@ -449,7 +422,7 @@ export function SetupChecklist({
       {/* Stages */}
       <div className="flex flex-col gap-4">
         {stages.map((stage, stageIdx) => {
-          const stageOpen = openStages[stage.stage.id] ?? stageIdx === 0
+          const stageOpen = openStages[stage.stage.id] ?? true
           const stageDone = stage.topLevel.filter((ct) => {
             const eff = ct.task?.has_subtasks
               ? effectiveParentStatus(
@@ -510,16 +483,11 @@ export function SetupChecklist({
                       }
                       isTeamView={isTeamView}
                       onSetStatus={updateTaskStatus}
-                      isParentExpanded={
-                        openParents[ct.id] ?? !!ct.task?.has_subtasks
-                      }
+                      isParentExpanded={openParents[ct.id] ?? false}
                       toggleParent={() =>
                         setOpenParents((p) => ({
                           ...p,
-                          [ct.id]:
-                            p[ct.id] === undefined
-                              ? !ct.task?.has_subtasks
-                              : !p[ct.id],
+                          [ct.id]: !(p[ct.id] ?? false),
                         }))
                       }
                     />
@@ -559,7 +527,7 @@ function TopLevelTask({
   const effective = hasSubs ? effectiveParentStatus(ct, subs) : ct.status
   const subsDone = subs.filter((s) => s.status === 'completed').length
 
-  // Group subtasks
+  // Group subtasks (static display, no per-group collapse)
   const grouped = useMemo(() => {
     const m = new Map<string, ClientTaskJoined[]>()
     for (const s of subs) {
@@ -572,67 +540,54 @@ function TopLevelTask({
     )
   }, [subs])
 
-  // Per-group open state (smart auto-expand on mount only)
-  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>(() => {
-    // Recompute the grouping inside the initializer to avoid depending on
-    // a memo that hasn't been set yet.
-    const m = new Map<string, ClientTaskJoined[]>()
-    for (const s of subs) {
-      const g = groupForSubtask(s.task?.title ?? '')
-      if (!m.has(g)) m.set(g, [])
-      m.get(g)!.push(s)
-    }
-    const sorted = Array.from(m.entries()).sort(
-      (a, b) => GROUP_ORDER.indexOf(a[0]) - GROUP_ORDER.indexOf(b[0])
-    )
-    const result: Record<string, boolean> = {}
-    let firstIncompleteFound = false
-    for (const [name, items] of sorted) {
-      const allDone =
-        items.length > 0 && items.every((s) => s.status === 'completed')
-      if (allDone) {
-        result[name] = false
-      } else if (!firstIncompleteFound) {
-        result[name] = true
-        firstIncompleteFound = true
-      } else {
-        result[name] = false
-      }
-    }
-    return result
-  })
-
   return (
     <div>
-      <div className="group flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+      <div
+        className={cn(
+          'group flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-white/[0.03] transition-colors',
+          hasSubs && 'cursor-pointer'
+        )}
+        onClick={hasSubs ? toggleParent : undefined}
+        role={hasSubs ? 'button' : undefined}
+        tabIndex={hasSubs ? 0 : undefined}
+        onKeyDown={
+          hasSubs
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  toggleParent()
+                }
+              }
+            : undefined
+        }
+      >
         {hasSubs ? (
           <div className="mt-0.5">
             <StatusGlyph status={effective} />
           </div>
         ) : (
-          <StatusPicker
-            status={ct.status}
-            isTeamView={isTeamView}
-            onChange={(next) => onSetStatus(ct.id, next)}
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <StatusPicker
+              status={ct.status}
+              isTeamView={isTeamView}
+              onChange={(next) => onSetStatus(ct.id, next)}
+            />
+          </div>
         )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={hasSubs ? toggleParent : undefined}
+            <span
               className={cn(
-                'text-sm text-left',
+                'text-sm',
                 effective === 'completed'
                   ? 'text-kst-muted line-through'
                   : 'text-kst-white',
-                hasSubs &&
-                  'hover:text-kst-gold transition-colors cursor-pointer'
+                hasSubs && 'group-hover:text-kst-gold transition-colors'
               )}
             >
               {ct.task?.title ?? 'Untitled task'}
-            </button>
+            </span>
             {hasSubs && (
               <span className="text-kst-muted text-xs">
                 ({subsDone}/{subs.length} subtasks done)
@@ -659,49 +614,29 @@ function TopLevelTask({
       </div>
 
       {hasSubs && isParentExpanded && (
-        <div className="ml-9 mr-2 mb-2 border-l border-white/[0.06] pl-4">
+        <div className="ml-9 mr-2 mb-2 border-l border-white/[0.06] pl-4 kst-fade-in">
           {grouped.map(([groupName, items]) => {
-            const open = groupOpen[groupName] ?? false
             const groupDone = items.filter(
               (i) => i.status === 'completed'
             ).length
             return (
               <div key={groupName} className="mt-3 first:mt-1">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setGroupOpen((p) => ({ ...p, [groupName]: !open }))
-                  }
-                  className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors"
-                >
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
                   <span className="text-[10px] uppercase tracking-wider text-kst-muted/80 font-semibold">
                     {groupName}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-kst-muted/60">
-                      {groupDone}/{items.length}
-                    </span>
-                    <ChevronDown
-                      size={12}
-                      className={cn(
-                        'text-kst-muted transition-transform',
-                        open && 'rotate-180'
-                      )}
-                    />
-                  </div>
-                </button>
-                {open && (
-                  <div className="kst-fade-in">
-                    {items.map((s) => (
-                      <SubtaskRow
-                        key={s.id}
-                        ct={s}
-                        isTeamView={isTeamView}
-                        onSetStatus={onSetStatus}
-                      />
-                    ))}
-                  </div>
-                )}
+                  <span className="text-[10px] text-kst-muted/60">
+                    {groupDone}/{items.length}
+                  </span>
+                </div>
+                {items.map((s) => (
+                  <SubtaskRow
+                    key={s.id}
+                    ct={s}
+                    isTeamView={isTeamView}
+                    onSetStatus={onSetStatus}
+                  />
+                ))}
               </div>
             )
           })}
@@ -891,11 +826,11 @@ function TaskLinks({
   if (!task) return null
 
   const validExtras = task.extra_links
-    ? Object.entries(task.extra_links).filter(([, url]) => isRealUrl(url))
+    ? Object.entries(task.extra_links).filter(([, url]) => hasUrl(url))
     : []
 
-  const hasTraining = isRealUrl(task.training_url)
-  const hasDoc = isRealUrl(task.doc_url)
+  const hasTraining = hasUrl(task.training_url)
+  const hasDoc = hasUrl(task.doc_url)
 
   if (!hasTraining && !hasDoc && validExtras.length === 0) return null
 
