@@ -61,11 +61,13 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
     completed: number
   } | null>(null)
   const [savingField, setSavingField] = useState<'status' | 'csm' | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>(() =>
-    searchParams.get('tab') === 'success' && client.launched_date
-      ? 'success'
-      : 'setup'
-  )
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'success' && client.launched_date) return 'success'
+    if (tab === 'setup') return 'setup'
+    // Default: launched clients land on Success Tracking, others on Setup
+    return client.launched_date ? 'success' : 'setup'
+  })
 
   const isLaunched = !!launchedDate
 

@@ -13,9 +13,7 @@ import {
   ArrowRight,
   BarChart3,
   Check,
-  ChevronLeft,
-  ChevronRight,
-  Save,
+  ChevronDown,
   Target,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -118,7 +116,7 @@ const CALC_METRICS: CalcMetricDef[] = [
 ]
 
 // ───────────────────────────────────────────────────────────────────────────
-// Date helpers
+// Date helpers (Monday-Sunday weeks)
 // ───────────────────────────────────────────────────────────────────────────
 
 function parseLocalDate(s: string): Date {
@@ -139,34 +137,39 @@ function toIso(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-function startOfDay(d: Date): Date {
+/** Start of the Monday-anchored week containing `d` (local midnight). */
+function startOfWeekMonday(d: Date): Date {
   const r = new Date(d)
   r.setHours(0, 0, 0, 0)
+  const day = r.getDay() // 0 = Sunday … 6 = Saturday
+  const offset = day === 0 ? 6 : day - 1
+  r.setDate(r.getDate() - offset)
   return r
 }
 
-function diffDays(a: Date, b: Date): number {
-  return Math.floor(
-    (startOfDay(a).getTime() - startOfDay(b).getTime()) / 86400000
-  )
-}
-
-function computeCurrentWeek(launched: Date, today: Date): number {
-  return Math.max(1, Math.floor(diffDays(today, launched) / 7) + 1)
-}
-
-function weekRange(launched: Date, weekNum: number): { start: Date; end: Date } {
-  const start = addDays(launched, (weekNum - 1) * 7)
+function weekRange(
+  launchedAt: Date,
+  weekNum: number
+): { start: Date; end: Date } {
+  const week1 = startOfWeekMonday(launchedAt)
+  const start = addDays(week1, (weekNum - 1) * 7)
   const end = addDays(start, 6)
   return { start, end }
+}
+
+function computeCurrentWeek(launchedAt: Date, today: Date): number {
+  const week1 = startOfWeekMonday(launchedAt)
+  const todayMonday = startOfWeekMonday(today)
+  const diffWeeks = Math.round(
+    (todayMonday.getTime() - week1.getTime()) / (86400000 * 7)
+  )
+  return Math.max(1, diffWeeks + 1)
 }
 
 function formatRange(start: Date, end: Date): string {
   const sameYear = start.getFullYear() === end.getFullYear()
   const sameMonth = sameYear && start.getMonth() === end.getMonth()
-  const startOpts: Intl.DateTimeFormatOptions = sameMonth
-    ? { month: 'short', day: 'numeric' }
-    : { month: 'short', day: 'numeric' }
+  const startOpts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
   const endOpts: Intl.DateTimeFormatOptions = sameMonth
     ? { day: 'numeric', year: 'numeric' }
     : { month: 'short', day: 'numeric', year: 'numeric' }
@@ -184,7 +187,7 @@ function parseNum(s: string): number | undefined {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Component
+// Top-level component
 // ───────────────────────────────────────────────────────────────────────────
 
 export function SuccessTracking({
@@ -199,37 +202,33 @@ export function SuccessTracking({
   )
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [currentWeek, setCurrentWeek] = useState(thisWeekNum)
-  const [existingWeeks, setExistingWeeks] = useState<Set<number>>(new Set())
-
+  const [reportsByWeek, setReportsByWeek] = useState<
+    Map<number, WeeklyReportRow>
+  >(new Map())
   const [loading, setLoading] = useState(true)
-  const [reportExists, setReportExists] = useState(false)
-  const [metricInputs, setMetricInputs] = useState<Record<string, string>>({})
-  const [bottlenecks, setBottlenecks] = useState('')
-  const [nextSteps, setNextSteps] = useState('')
-  const [priorities, setPriorities] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const dirtyRef = useRef(false)
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // ── Initial data fetch (user + which weeks have reports)
   useEffect(() => {
     let cancelled = false
     async function init() {
-      const [{ data: userData }, { data: weeks }] = await Promise.all([
+      setLoading(true)
+      setLoadError(null)
+      const [{ data: userData }, { data, error }] = await Promise.all([
         supabase.auth.getUser(),
-        supabase
-          .from('weekly_reports')
-          .select('week_number')
-          .eq('client_id', clientId),
+        supabase.from('weekly_reports').select('*').eq('client_id', clientId),
       ])
       if (cancelled) return
+      if (error) {
+        setLoadError(error.message)
+      } else {
+        const m = new Map<number, WeeklyReportRow>()
+        for (const r of (data ?? []) as WeeklyReportRow[]) {
+          m.set(r.week_number, r)
+        }
+        setReportsByWeek(m)
+      }
       setCurrentUserId(userData.user?.id ?? null)
-      setExistingWeeks(
-        new Set((weeks ?? []).map((w) => (w as { week_number: number }).week_number))
-      )
+      setLoading(false)
     }
     init()
     return () => {
@@ -237,54 +236,102 @@ export function SuccessTracking({
     }
   }, [clientId, supabase])
 
-  // ── Load the active week whenever currentWeek changes
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('weekly_reports')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('week_number', currentWeek)
-        .maybeSingle()
-      if (cancelled) return
-      if (error) {
-        setSaveError(error.message)
-      } else {
-        const row = data as WeeklyReportRow | null
-        if (row) {
-          const inputs: Record<string, string> = {}
-          if (row.metrics) {
-            for (const m of INPUT_METRICS) {
-              const v = row.metrics[m.key]
-              if (v !== null && v !== undefined) inputs[m.key] = String(v)
-            }
-          }
-          setMetricInputs(inputs)
-          setBottlenecks(row.bottlenecks ?? '')
-          setNextSteps(row.next_steps ?? '')
-          setPriorities(row.current_priorities ?? '')
-          setReportExists(true)
-        } else {
-          setMetricInputs({})
-          setBottlenecks('')
-          setNextSteps('')
-          setPriorities('')
-          setReportExists(false)
+  if (loading) {
+    return (
+      <div className="glass-panel p-6">
+        <p className="text-kst-muted text-sm">Loading reports…</p>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="glass-panel p-6">
+        <p className="text-kst-error text-sm">
+          Could not load reports: {loadError}
+        </p>
+      </div>
+    )
+  }
+
+  const weeks: number[] = []
+  for (let w = thisWeekNum; w >= 1; w--) weeks.push(w)
+
+  return (
+    <div className="space-y-4">
+      {weeks.map((w) => {
+        const { start, end } = weekRange(launchedAt, w)
+        return (
+          <WeekCard
+            key={w}
+            clientId={clientId}
+            currentUserId={currentUserId}
+            weekNum={w}
+            weekStart={start}
+            weekEnd={end}
+            initialReport={reportsByWeek.get(w) ?? null}
+            defaultExpanded={w === thisWeekNum}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Week card (one row per week, owns its own form state and auto-save)
+// ───────────────────────────────────────────────────────────────────────────
+
+interface WeekCardProps {
+  clientId: string
+  currentUserId: string | null
+  weekNum: number
+  weekStart: Date
+  weekEnd: Date
+  initialReport: WeeklyReportRow | null
+  defaultExpanded: boolean
+}
+
+function WeekCard({
+  clientId,
+  currentUserId,
+  weekNum,
+  weekStart,
+  weekEnd,
+  initialReport,
+  defaultExpanded,
+}: WeekCardProps) {
+  const supabase = useMemo(() => createClient(), [])
+
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [reportExists, setReportExists] = useState(!!initialReport)
+
+  const [metricInputs, setMetricInputs] = useState<Record<string, string>>(
+    () => {
+      const out: Record<string, string> = {}
+      if (initialReport?.metrics) {
+        for (const m of INPUT_METRICS) {
+          const v = initialReport.metrics[m.key]
+          if (v !== null && v !== undefined) out[m.key] = String(v)
         }
       }
-      dirtyRef.current = false
-      setSaveStatus('idle')
-      setLoading(false)
+      return out
     }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [clientId, currentWeek, supabase])
+  )
+  const [bottlenecks, setBottlenecks] = useState(
+    initialReport?.bottlenecks ?? ''
+  )
+  const [nextSteps, setNextSteps] = useState(initialReport?.next_steps ?? '')
+  const [priorities, setPriorities] = useState(
+    initialReport?.current_priorities ?? ''
+  )
 
-  // ── Build metric numbers for calculated fields
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const dirtyRef = useRef(false)
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Numeric metrics for live calculations
   const metricNums = useMemo(() => {
     const out: Partial<Record<MetricKey, number>> = {}
     for (const m of INPUT_METRICS) {
@@ -294,12 +341,10 @@ export function SuccessTracking({
     return out
   }, [metricInputs])
 
-  // ── Save (manual + debounced auto-save)
-  const doSave = useCallback(async (): Promise<boolean> => {
+  const doSave = useCallback(async () => {
     setSaveStatus('saving')
     setSaveError(null)
 
-    const { start, end } = weekRange(launchedAt, currentWeek)
     const metricsPayload: Record<string, number> = {}
     for (const m of INPUT_METRICS) {
       const v = parseNum(metricInputs[m.key] ?? '')
@@ -309,9 +354,9 @@ export function SuccessTracking({
     const { error } = await supabase.from('weekly_reports').upsert(
       {
         client_id: clientId,
-        week_number: currentWeek,
-        week_start: toIso(start),
-        week_end: toIso(end),
+        week_number: weekNum,
+        week_start: toIso(weekStart),
+        week_end: toIso(weekEnd),
         metrics: metricsPayload,
         bottlenecks: bottlenecks.trim() || null,
         next_steps: nextSteps.trim() || null,
@@ -324,32 +369,27 @@ export function SuccessTracking({
     if (error) {
       setSaveError(error.message)
       setSaveStatus('idle')
-      return false
+      return
     }
 
     dirtyRef.current = false
     setReportExists(true)
-    setExistingWeeks((prev) => {
-      const next = new Set(prev)
-      next.add(currentWeek)
-      return next
-    })
     setSaveStatus('saved')
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
     fadeTimerRef.current = setTimeout(() => {
       setSaveStatus((s) => (s === 'saved' ? 'idle' : s))
     }, 2000)
-    return true
   }, [
     bottlenecks,
     clientId,
     currentUserId,
-    currentWeek,
-    launchedAt,
     metricInputs,
     nextSteps,
     priorities,
     supabase,
+    weekEnd,
+    weekNum,
+    weekStart,
   ])
 
   // Debounced auto-save (1.5s after last edit)
@@ -362,14 +402,12 @@ export function SuccessTracking({
     return () => clearTimeout(t)
   }, [metricInputs, bottlenecks, nextSteps, priorities, doSave])
 
-  // Cleanup fade timer
   useEffect(() => {
     return () => {
       if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
     }
   }, [])
 
-  // ── Input handlers
   function markDirty() {
     dirtyRef.current = true
   }
@@ -378,7 +416,6 @@ export function SuccessTracking({
     markDirty()
     setMetricInputs((prev) => ({ ...prev, [key]: value }))
   }
-
   function handleBottlenecks(e: ChangeEvent<HTMLTextAreaElement>) {
     markDirty()
     setBottlenecks(e.target.value)
@@ -392,195 +429,122 @@ export function SuccessTracking({
     setPriorities(e.target.value)
   }
 
-  // ── Week navigation
-  const { start, end } = weekRange(launchedAt, currentWeek)
-  const isCurrentWeek = currentWeek === thisWeekNum
-
-  function goPrev() {
-    setCurrentWeek((w) => Math.max(1, w - 1))
-  }
-  function goNext() {
-    setCurrentWeek((w) => Math.min(thisWeekNum, w + 1))
-  }
-  function goThisWeek() {
-    setCurrentWeek(thisWeekNum)
-  }
-
-  // ── Visible week dots (last 12 ending at thisWeekNum)
-  const visibleWeeks = useMemo(() => {
-    const startW = Math.max(1, thisWeekNum - 11)
-    const arr: number[] = []
-    for (let i = startW; i <= thisWeekNum; i++) arr.push(i)
-    return arr
-  }, [thisWeekNum])
-
-  const showEarlier = thisWeekNum > 12
+  // Collapsed-state summary
+  const summary = useMemo(() => {
+    if (!reportExists) return null
+    const parts: string[] = []
+    const revenue = metricNums.revenue_collected
+    if (revenue != null)
+      parts.push(`Revenue: $${revenue.toLocaleString('en-US')}`)
+    if (
+      metricNums.ad_spend &&
+      metricNums.revenue_collected != null
+    ) {
+      const roas = metricNums.revenue_collected / metricNums.ad_spend
+      parts.push(`ROAS: ${roas.toFixed(1)}x`)
+    }
+    return parts.length > 0 ? parts.join(' • ') : 'Report started'
+  }, [metricNums, reportExists])
 
   return (
-    <div>
-      {/* Week navigation */}
-      <div className="glass-panel-sm p-5 mb-4">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <button
-            type="button"
-            onClick={goPrev}
-            disabled={currentWeek <= 1}
-            aria-label="Previous week"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-kst-muted hover:text-kst-white hover:bg-white/[0.05] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft size={18} />
-          </button>
-
-          <div className="text-center min-w-0">
-            <p className="text-kst-white font-semibold">Week {currentWeek}</p>
-            <p className="text-kst-muted text-xs">{formatRange(start, end)}</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={goNext}
-            disabled={currentWeek >= thisWeekNum}
-            aria-label="Next week"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-kst-muted hover:text-kst-white hover:bg-white/[0.05] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            {showEarlier && (
-              <button
-                type="button"
-                onClick={() => setCurrentWeek(1)}
-                className="text-[11px] text-kst-muted hover:text-kst-gold transition-colors mr-1"
-              >
-                ← Earlier
-              </button>
-            )}
-            {visibleWeeks.map((w) => {
-              const filled = existingWeeks.has(w)
-              const isCur = w === currentWeek
-              return (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setCurrentWeek(w)}
-                  title={`Week ${w}`}
-                  aria-label={`Go to week ${w}`}
-                  className="p-1 -m-1"
-                >
-                  <span
-                    className={cn(
-                      'block rounded-full transition-all',
-                      isCur
-                        ? 'w-3 h-3 ring-2 ring-kst-gold ring-offset-2 ring-offset-kst-black'
-                        : 'w-2 h-2',
-                      filled ? 'bg-kst-gold' : 'bg-white/20 hover:bg-white/40'
-                    )}
-                  />
-                </button>
-              )
-            })}
-          </div>
-
-          {!isCurrentWeek && (
-            <button
-              type="button"
-              onClick={goThisWeek}
-              className="text-xs px-3 h-8 rounded-full border border-kst-gold/60 text-kst-gold hover:bg-kst-gold/10 transition-colors"
+    <div className="glass-panel overflow-hidden">
+      {/* Header (always visible, click to expand) */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-start justify-between gap-4 px-6 py-5 text-left hover:bg-white/[0.02] transition-colors"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-kst-white font-semibold">Week {weekNum}</p>
+          <p className="text-kst-muted text-xs mt-0.5">
+            {formatRange(weekStart, weekEnd)}
+          </p>
+          {!expanded && (
+            <p
+              className={cn(
+                'text-xs mt-1.5 truncate',
+                summary ? 'text-kst-muted' : 'text-kst-muted/60 italic'
+              )}
             >
-              This Week
-            </button>
+              {summary ?? 'No report'}
+            </p>
           )}
         </div>
-      </div>
-
-      {/* Report card */}
-      <div className="glass-panel p-6 md:p-8 relative">
-        {/* Save indicator (top-right) */}
-        <div className="absolute top-4 right-4 flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0 mt-1">
           <SaveIndicator status={saveStatus} />
-          <button
-            type="button"
-            onClick={() => doSave()}
-            disabled={saveStatus === 'saving'}
-            className="inline-flex items-center gap-1.5 text-xs px-3 h-8 rounded-full border border-kst-gold/60 text-kst-gold hover:bg-kst-gold/10 transition-colors disabled:opacity-60"
-          >
-            <Save size={12} />
-            Save
-          </button>
+          <ChevronDown
+            size={16}
+            className={cn(
+              'text-kst-muted transition-transform',
+              expanded && 'rotate-180'
+            )}
+          />
         </div>
+      </button>
 
-        {loading ? (
-          <p className="text-kst-muted text-sm">Loading week...</p>
-        ) : (
-          <div className="space-y-8 mt-6">
-            {!reportExists && (
-              <p className="text-kst-muted text-xs">
-                No report for this week yet. Start filling in the fields to
-                create one.
-              </p>
-            )}
+      {/* Body (when expanded) */}
+      {expanded && (
+        <div className="px-6 pb-6 border-t border-white/[0.05] pt-6 space-y-8">
+          {!reportExists && (
+            <p className="text-kst-muted text-xs">
+              No report for this week yet. Start filling in the fields to
+              create one.
+            </p>
+          )}
 
-            {/* Metrics */}
-            <Section title="Metrics" icon={<BarChart3 size={16} />}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {INPUT_METRICS.map((m) => (
-                  <MetricInput
-                    key={m.key}
-                    label={m.label}
-                    prefix={m.prefix}
-                    value={metricInputs[m.key] ?? ''}
-                    onChange={(v) => handleMetricChange(m.key, v)}
+          <Section title="Metrics" icon={<BarChart3 size={16} />}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {INPUT_METRICS.map((m) => (
+                <MetricInput
+                  key={m.key}
+                  label={m.label}
+                  prefix={m.prefix}
+                  value={metricInputs[m.key] ?? ''}
+                  onChange={(v) => handleMetricChange(m.key, v)}
+                />
+              ))}
+              {CALC_METRICS.map((c) => {
+                const v = c.compute(metricNums)
+                return (
+                  <CalcMetric
+                    key={c.key}
+                    label={c.label}
+                    value={v == null ? '—' : c.format(v)}
                   />
-                ))}
-                {CALC_METRICS.map((c) => {
-                  const v = c.compute(metricNums)
-                  return (
-                    <CalcMetric
-                      key={c.key}
-                      label={c.label}
-                      value={v == null ? '—' : c.format(v)}
-                    />
-                  )
-                })}
-              </div>
-            </Section>
+                )
+              })}
+            </div>
+          </Section>
 
-            {/* Bottlenecks */}
-            <Section title="Bottlenecks" icon={<AlertTriangle size={16} />}>
-              <ReportTextarea
-                value={bottlenecks}
-                onChange={handleBottlenecks}
-                placeholder="What's blocking progress this week?"
-              />
-            </Section>
+          <Section title="Bottlenecks" icon={<AlertTriangle size={16} />}>
+            <ReportTextarea
+              value={bottlenecks}
+              onChange={handleBottlenecks}
+              placeholder="What's blocking progress this week?"
+            />
+          </Section>
 
-            {/* Next Steps */}
-            <Section title="Next Steps" icon={<ArrowRight size={16} />}>
-              <ReportTextarea
-                value={nextSteps}
-                onChange={handleNextSteps}
-                placeholder="Action items for the coming week..."
-              />
-            </Section>
+          <Section title="Next Steps" icon={<ArrowRight size={16} />}>
+            <ReportTextarea
+              value={nextSteps}
+              onChange={handleNextSteps}
+              placeholder="Action items for the coming week..."
+            />
+          </Section>
 
-            {/* Current Priorities */}
-            <Section title="Current Priorities" icon={<Target size={16} />}>
-              <ReportTextarea
-                value={priorities}
-                onChange={handlePriorities}
-                placeholder="What should we focus on?"
-              />
-            </Section>
+          <Section title="Current Priorities" icon={<Target size={16} />}>
+            <ReportTextarea
+              value={priorities}
+              onChange={handlePriorities}
+              placeholder="What should we focus on?"
+            />
+          </Section>
 
-            {saveError && (
-              <p className="text-kst-error text-xs">Save error: {saveError}</p>
-            )}
-          </div>
-        )}
-      </div>
+          {saveError && (
+            <p className="text-kst-error text-xs">Save error: {saveError}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
