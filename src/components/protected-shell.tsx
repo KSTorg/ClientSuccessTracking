@@ -53,9 +53,9 @@ export function ProtectedShell({
   const initials = initialsOf(displayName)
 
   return (
-    <div className="min-h-screen flex flex-col bg-kst-black">
-      {/* Top Bar */}
-      <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-kst-dark border-b border-white/[0.06] z-30">
+    <div className="min-h-screen bg-kst-black">
+      {/* Top Bar — sticky */}
+      <header className="sticky top-0 z-50 h-16 flex items-center justify-between px-4 md:px-6 bg-kst-dark border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -84,9 +84,9 @@ export function ProtectedShell({
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
-        {/* Sidebar (desktop) */}
-        <aside className="hidden md:flex w-[260px] flex-col bg-[#111111] border-r border-white/[0.06]">
+      <div className="flex items-start">
+        {/* Sidebar (desktop) — sticky just below the top bar */}
+        <aside className="hidden md:flex sticky top-16 h-[calc(100vh-4rem)] w-[260px] flex-col bg-[#111111] border-r border-white/[0.06] overflow-y-auto shrink-0">
           <SidebarContent navItems={navItems} pathname={pathname} />
         </aside>
 
@@ -124,10 +124,8 @@ export function ProtectedShell({
           </div>
         )}
 
-        {/* Main */}
-        <main className="flex-1 min-w-0 p-6 md:p-8 overflow-y-auto">
-          {children}
-        </main>
+        {/* Main — scrolls with the page; sticky header + sidebar stay put */}
+        <main className="flex-1 min-w-0 p-6 md:p-8">{children}</main>
       </div>
     </div>
   )
