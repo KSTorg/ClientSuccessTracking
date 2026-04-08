@@ -14,6 +14,7 @@ import {
   FileText,
   PlayCircle,
   ExternalLink,
+  Rocket,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -61,10 +62,26 @@ interface OrganizedStage {
   topLevel: ClientTaskJoined[]
 }
 
+interface Stage12Progress {
+  total: number
+  completed: number
+}
+
 interface SetupChecklistProps {
   clientId: string
   isTeamView: boolean
   clientName?: string
+  isLaunched?: boolean
+  onLaunchedChange?: (launchedDate: string | null) => void
+  onStage12ProgressChange?: (progress: Stage12Progress) => void
+}
+
+const LAUNCH_TASK_TITLE = 'Launch Ads'
+
+interface PendingLaunch {
+  clientTaskId: string
+  prevStatus: TaskStatus
+  prevCompletedAt: string | null
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -184,6 +201,10 @@ function effectiveParentStatus(
 export function SetupChecklist({
   clientId,
   isTeamView,
+  clientName,
+  isLaunched = false,
+  onLaunchedChange,
+  onStage12ProgressChange,
 }: SetupChecklistProps) {
   const supabase = useMemo(() => createClient(), [])
 
@@ -194,6 +215,7 @@ export function SetupChecklist({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [openStages, setOpenStages] = useState<Record<string, boolean>>({})
   const [openParents, setOpenParents] = useState<Record<string, boolean>>({})
+  const [pendingLaunch, setPendingLaunch] = useState<PendingLaunch | null>(null)
 
   // Fetch
   useEffect(() => {
@@ -327,6 +349,19 @@ export function SetupChecklist({
   const overallPct =
     totalTop > 0 ? Math.round((completedTop / totalTop) * 100) : 0
 
+  // Silent launch revert (when Launch Ads moves away from completed)
+  const revertLaunchOnClient = useCallback(async () => {
+    const { error } = await supabase
+      .from('clients')
+      .update({ launched_date: null, status: 'onboarding' })
+      .eq('id', clientId)
+    if (error) {
+      setToast(`Couldn't revert launch: ${error.message}`)
+      return
+    }
+    onLaunchedChange?.(null)
+  }, [supabase, clientId, onLaunchedChange])
+
   // Status mutation (now takes an explicit target status)
   const updateTaskStatus = useCallback(
     async (clientTaskId: string, next: TaskStatus) => {
@@ -334,6 +369,7 @@ export function SetupChecklist({
       if (!target || target.task?.has_subtasks) return
       if (target.status === next) return
 
+      const isLaunchTask = target.task?.title === LAUNCH_TASK_TITLE
       const completedAt =
         next === 'completed' ? new Date().toISOString() : null
 
@@ -365,10 +401,90 @@ export function SetupChecklist({
           )
         )
         setToast(`Couldn't update task: ${error.message}`)
+        return
+      }
+
+      // Launch gate
+      if (isLaunchTask) {
+        if (next === 'completed' && !isLaunched) {
+          setPendingLaunch({
+            clientTaskId,
+            prevStatus,
+            prevCompletedAt,
+          })
+        } else if (
+          prevStatus === 'completed' &&
+          next !== 'completed' &&
+          isLaunched
+        ) {
+          await revertLaunchOnClient()
+        }
       }
     },
-    [rows, supabase, currentUserId]
+    [rows, supabase, currentUserId, isLaunched, revertLaunchOnClient]
   )
+
+  // Confirm the pending launch (writes to clients table)
+  const confirmLaunch = useCallback(async () => {
+    if (!pendingLaunch) return
+    const today = new Date().toISOString().slice(0, 10)
+    const { error } = await supabase
+      .from('clients')
+      .update({ launched_date: today, status: 'launched' })
+      .eq('id', clientId)
+    if (error) {
+      setToast(`Couldn't launch client: ${error.message}`)
+      return
+    }
+    onLaunchedChange?.(today)
+    setPendingLaunch(null)
+  }, [pendingLaunch, supabase, clientId, onLaunchedChange])
+
+  // Cancel the pending launch — revert the task back to its previous status
+  const cancelLaunch = useCallback(async () => {
+    if (!pendingLaunch) return
+    const { clientTaskId, prevStatus, prevCompletedAt } = pendingLaunch
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === clientTaskId
+          ? { ...r, status: prevStatus, completed_at: prevCompletedAt }
+          : r
+      )
+    )
+    const { error } = await supabase
+      .from('client_tasks')
+      .update({
+        status: prevStatus,
+        completed_at: prevCompletedAt,
+        completed_by: null,
+      })
+      .eq('id', clientTaskId)
+    if (error) {
+      setToast(`Couldn't revert task: ${error.message}`)
+    }
+    setPendingLaunch(null)
+  }, [pendingLaunch, supabase])
+
+  // Emit Stage 1 + 2 progress to the parent whenever it changes
+  useEffect(() => {
+    if (!onStage12ProgressChange || stages.length === 0) return
+    let total = 0
+    let completed = 0
+    for (let i = 0; i < Math.min(2, stages.length); i++) {
+      const stage = stages[i]!
+      for (const ct of stage.topLevel) {
+        total += 1
+        const eff = ct.task?.has_subtasks
+          ? effectiveParentStatus(
+              ct,
+              subtasksByParent.get(ct.task!.id) ?? []
+            )
+          : ct.status
+        if (eff === 'completed') completed += 1
+      }
+    }
+    onStage12ProgressChange({ total, completed })
+  }, [stages, subtasksByParent, onStage12ProgressChange])
 
   // ───── Render ─────────────────────────────────────────────────────────
   if (loading) return <ChecklistSkeleton />
@@ -497,6 +613,84 @@ export function SetupChecklist({
             </div>
           )
         })}
+      </div>
+
+      {pendingLaunch && (
+        <LaunchConfirmModal
+          companyName={clientName ?? 'this client'}
+          onConfirm={confirmLaunch}
+          onCancel={cancelLaunch}
+        />
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Launch confirmation modal
+// ───────────────────────────────────────────────────────────────────────────
+
+function LaunchConfirmModal({
+  companyName,
+  onConfirm,
+  onCancel,
+}: {
+  companyName: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
+        onClick={onCancel}
+        aria-hidden
+      />
+      <div
+        className="glass-panel relative w-full max-w-[480px] p-7 kst-fade-in"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-kst-gold/10 border border-kst-gold/40 flex items-center justify-center">
+            <Rocket size={18} className="text-kst-gold" />
+          </div>
+          <h2 className="text-kst-white text-xl font-semibold">
+            Launch {companyName}?
+          </h2>
+        </div>
+        <p className="text-kst-muted text-sm leading-relaxed mb-6">
+          Marking &lsquo;Launch Ads&rsquo; as complete will launch this
+          client and enable Success Tracking. The launch date will be set
+          to today.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm shadow-[0_8px_32px_rgba(201,168,76,0.25)]"
+          >
+            <Rocket size={14} />
+            Confirm Launch
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
+import { CheckCircle } from 'lucide-react'
 import { getUserWithProfile } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { SetupChecklist } from '@/components/SetupChecklist'
+import { formatDate } from '@/lib/utils'
 
 export default async function MyProgressPage() {
   const data = await getUserWithProfile()
@@ -10,7 +12,7 @@ export default async function MyProgressPage() {
   const supabase = await createClient()
   const { data: client } = await supabase
     .from('clients')
-    .select('id, company_name')
+    .select('id, company_name, launched_date')
     .eq('user_id', data.user.id)
     .maybeSingle()
 
@@ -40,15 +42,25 @@ export default async function MyProgressPage() {
     )
   }
 
+  const isLaunched = !!client.launched_date
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1
-          className="text-5xl md:text-6xl text-kst-gold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          My Progress
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1
+            className="text-5xl md:text-6xl text-kst-gold tracking-tight"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            My Progress
+          </h1>
+          {isLaunched && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border border-kst-success/60 text-kst-success bg-kst-success/10">
+              <CheckCircle size={12} />
+              Launched {formatDate(client.launched_date)}
+            </span>
+          )}
+        </div>
         <p className="mt-3 text-kst-muted">
           Welcome, {name} — here&apos;s your setup checklist for{' '}
           <span className="text-kst-white">{client.company_name}</span>
@@ -59,6 +71,7 @@ export default async function MyProgressPage() {
         clientId={client.id}
         isTeamView={false}
         clientName={client.company_name}
+        isLaunched={isLaunched}
       />
     </div>
   )

@@ -1,9 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Check, ChevronDown, Edit3, Trash2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  Calendar,
+  Check,
+  CheckCircle,
+  ChevronDown,
+  Edit3,
+  Lock,
+  Rocket,
+  Trash2,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { StatusBadge } from '@/components/clients/status-badge'
@@ -42,8 +52,48 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
 
   const [status, setStatus] = useState<ClientStatus>(client.status)
   const [csmId, setCsmId] = useState<string>(client.assigned_csm ?? '')
+  const [launchedDate, setLaunchedDate] = useState<string | null>(
+    client.launched_date
+  )
+  const [stage12, setStage12] = useState<{
+    total: number
+    completed: number
+  } | null>(null)
   const [savingField, setSavingField] = useState<'status' | 'csm' | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('setup')
+
+  const isLaunched = !!launchedDate
+
+  const handleLaunchedChange = useCallback(
+    (date: string | null) => {
+      setLaunchedDate(date)
+      setStatus(date ? 'launched' : 'onboarding')
+      router.refresh()
+    },
+    [router]
+  )
+
+  const handleStage12Progress = useCallback(
+    (p: { total: number; completed: number }) => {
+      setStage12(p)
+    },
+    []
+  )
+
+  async function handleSetLaunchDate(date: string | null) {
+    const newStatus: ClientStatus = date ? 'launched' : 'onboarding'
+    const { error } = await supabase
+      .from('clients')
+      .update({ launched_date: date, status: newStatus })
+      .eq('id', client.id)
+    if (error) {
+      alert(`Could not update launch date: ${error.message}`)
+      return
+    }
+    setLaunchedDate(date)
+    setStatus(newStatus)
+    router.refresh()
+  }
 
   const [notes, setNotes] = useState(client.notes ?? '')
   const [notesOpen, setNotesOpen] = useState(true)
@@ -188,18 +238,20 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Launched Date
             </p>
-            <p className="text-sm h-10 flex items-center">
-              {client.launched_date ? (
-                <span className="text-kst-white">
-                  {formatDate(client.launched_date)}
-                </span>
-              ) : (
-                <span className="text-kst-muted">Not launched</span>
-              )}
-            </p>
+            <LaunchDatePicker
+              launchedDate={launchedDate}
+              onSet={(d) => handleSetLaunchDate(d)}
+              onClear={() => handleSetLaunchDate(null)}
+            />
           </div>
         </div>
       </div>
+
+      {/* Launch banner */}
+      <LaunchStatusBanner
+        launchedDate={launchedDate}
+        stage12={stage12}
+      />
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
@@ -211,22 +263,30 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
         </TabButton>
         <TabButton
           active={activeTab === 'success'}
-          onClick={() => setActiveTab('success')}
+          disabled={!isLaunched}
+          onClick={() => isLaunched && setActiveTab('success')}
+          tooltip={!isLaunched ? 'Available after launch' : undefined}
+          icon={!isLaunched ? <Lock size={11} /> : undefined}
         >
           Success Tracking
         </TabButton>
       </div>
 
       <div className="mb-6">
-        {activeTab === 'setup' ? (
+        {activeTab === 'setup' || !isLaunched ? (
           <SetupChecklist
             clientId={client.id}
             isTeamView
             clientName={client.company_name}
+            isLaunched={isLaunched}
+            onLaunchedChange={handleLaunchedChange}
+            onStage12ProgressChange={handleStage12Progress}
           />
         ) : (
           <div className="glass-panel p-8">
-            <p className="text-kst-muted text-sm">Coming in Phase 5</p>
+            <p className="text-kst-muted text-sm">
+              Weekly reports coming in Phase 5
+            </p>
           </div>
         )}
       </div>
@@ -330,24 +390,192 @@ function TabButton({
   active,
   onClick,
   children,
+  disabled,
+  tooltip,
+  icon,
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
+  disabled?: boolean
+  tooltip?: string
+  icon?: React.ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
+      title={tooltip}
       className={cn(
-        'px-4 h-10 rounded-xl glass-panel-sm text-sm transition-colors border-b-2',
-        active
-          ? 'text-kst-gold border-kst-gold'
-          : 'text-kst-muted border-transparent hover:text-kst-white'
+        'inline-flex items-center gap-2 px-4 h-10 rounded-xl glass-panel-sm text-sm transition-colors border-b-2',
+        disabled && 'opacity-40 cursor-not-allowed',
+        !disabled &&
+          (active
+            ? 'text-kst-gold border-kst-gold'
+            : 'text-kst-muted border-transparent hover:text-kst-white'),
+        disabled && 'text-kst-muted border-transparent'
       )}
     >
+      {icon}
       {children}
     </button>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Launch banner & launch date picker
+// ───────────────────────────────────────────────────────────────────────────
+
+function LaunchStatusBanner({
+  launchedDate,
+  stage12,
+}: {
+  launchedDate: string | null
+  stage12: { total: number; completed: number } | null
+}) {
+  if (launchedDate) {
+    return (
+      <div
+        className="glass-panel-sm p-4 mb-6 flex items-center gap-3"
+        style={{ borderLeft: '3px solid var(--kst-success)' }}
+      >
+        <CheckCircle size={18} className="text-kst-success shrink-0" />
+        <div className="min-w-0">
+          <p className="text-kst-white text-sm font-medium">
+            Launched on {formatDate(launchedDate)}
+          </p>
+          <p className="text-kst-muted text-xs">
+            Success Tracking is now active
+          </p>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div
+      className="glass-panel-sm p-4 mb-6 flex items-center gap-3"
+      style={{ borderLeft: '3px solid var(--kst-gold)' }}
+    >
+      <Rocket size={18} className="text-kst-gold shrink-0" />
+      <div className="min-w-0">
+        <p className="text-kst-white text-sm">
+          This client will be launched when &lsquo;Launch Ads&rsquo; is
+          completed
+        </p>
+        {stage12 && (
+          <p className="text-kst-muted text-xs mt-0.5">
+            {stage12.completed} of {stage12.total} Stage 1 &amp; 2 tasks
+            completed
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function LaunchDatePicker({
+  launchedDate,
+  onSet,
+  onClear,
+}: {
+  launchedDate: string | null
+  onSet: (date: string) => void
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [showCustom, setShowCustom] = useState(false)
+  const [customDate, setCustomDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  )
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, open, () => {
+    setOpen(false)
+    setShowCustom(false)
+  })
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-2 h-10 text-sm hover:text-kst-gold transition-colors"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <Calendar size={14} className="text-kst-muted" />
+        {launchedDate ? (
+          <span className="text-kst-white">{formatDate(launchedDate)}</span>
+        ) : (
+          <span className="text-kst-muted">Not launched</span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute z-50 left-0 top-full mt-2 min-w-[240px] kst-dropdown p-1 kst-fade-in">
+          {!showCustom ? (
+            <>
+              <PickerOption
+                active={false}
+                onClick={() => {
+                  onSet(today)
+                  setOpen(false)
+                }}
+              >
+                <span className="text-kst-white">Launch Today</span>
+              </PickerOption>
+              <PickerOption
+                active={false}
+                onClick={() => setShowCustom(true)}
+              >
+                <span className="text-kst-white">Set Custom Date</span>
+              </PickerOption>
+              {launchedDate && (
+                <PickerOption
+                  active={false}
+                  onClick={() => {
+                    onClear()
+                    setOpen(false)
+                  }}
+                >
+                  <span className="text-kst-error">Remove Launch Date</span>
+                </PickerOption>
+              )}
+            </>
+          ) : (
+            <div className="p-2">
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm mb-2 focus:outline-none focus:border-kst-gold/60"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCustom(false)}
+                  className="flex-1 h-9 rounded-lg text-kst-muted hover:text-kst-white text-xs transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSet(customDate)
+                    setOpen(false)
+                    setShowCustom(false)
+                  }}
+                  className="flex-1 h-9 rounded-lg bg-kst-gold text-kst-black font-semibold text-xs hover:bg-kst-gold-light transition-colors"
+                >
+                  Set Date
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
