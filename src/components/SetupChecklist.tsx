@@ -54,6 +54,7 @@ interface TaskRow {
   order_index: number
   default_specialty: Specialty | null
   client_facing_accelerator: boolean | null
+  accelerator_hide_docs: boolean | null
   stage: StageRow | null
 }
 
@@ -268,6 +269,7 @@ export function SetupChecklist({
               id, parent_task_id, has_subtasks, title, description,
               training_url, doc_url, extra_links, order_index,
               default_specialty, client_facing_accelerator,
+              accelerator_hide_docs,
               stage:stages ( id, name, order_index )
             )
             `
@@ -992,7 +994,9 @@ function TopLevelTask({
             className="min-w-0"
             onClick={(e) => e.stopPropagation()}
           >
-            {!hasSubs && !hideLinks && <TaskLinks task={ct.task} />}
+            {!hasSubs && !hideLinks && (
+              <TaskLinks task={ct.task} program={program} />
+            )}
           </div>
 
           {/* Col 5 — assignee (right-aligned). NO overflow-hidden — the
@@ -1137,7 +1141,7 @@ function SubtaskRow({
 
         {/* Col 4 — links */}
         <div className="min-w-0">
-          {!hideLinks && <TaskLinks task={ct.task} small />}
+          {!hideLinks && <TaskLinks task={ct.task} program={program} small />}
         </div>
 
         {/* Col 5 — assignee */}
@@ -1821,9 +1825,11 @@ function StatusGlyph({ status }: { status: TaskStatus }) {
 function TaskLinks({
   task,
   small = false,
+  program,
 }: {
   task: TaskRow | null
   small?: boolean
+  program: Program
 }) {
   if (!task) return null
 
@@ -1832,18 +1838,29 @@ function TaskLinks({
     : []
 
   const hasTraining = hasUrl(task.training_url)
-  const hasDoc = hasUrl(task.doc_url)
+  // Hide the Doc button for Accelerator clients when the task is flagged
+  // to hide docs (training links still show regardless).
+  const hideDocForAccelerator =
+    program === 'accelerator' && task.accelerator_hide_docs === true
+  const hasDoc = hasUrl(task.doc_url) && !hideDocForAccelerator
 
   if (!hasTraining && !hasDoc && validExtras.length === 0) return null
 
   const sizeCls = small ? 'text-[10px] px-2 py-1' : 'text-xs px-2.5 py-1'
+
+  // Label the training button "Watch Loom" for Loom URLs, "Training"
+  // otherwise.
+  const trainingLabel =
+    task.training_url && /loom\.com/i.test(task.training_url)
+      ? 'Watch Loom'
+      : 'Training'
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap justify-start">
       {hasTraining && (
         <LinkButton href={task.training_url!} className={sizeCls}>
           <PlayCircle size={small ? 11 : 12} />
-          Training
+          {trainingLabel}
         </LinkButton>
       )}
       {hasDoc && (
