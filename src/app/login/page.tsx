@@ -28,42 +28,12 @@ export default function LoginPage() {
       return
     }
 
-    // ───── DEBUG: profile lookup ──────────────────────────────────────────
-    // Remove these logs once the missing-profile bug is resolved.
-    console.log('[login] auth user id:', signInData.user.id)
-    console.log('[login] auth user email:', signInData.user.email)
-    console.log(
-      '[login] querying: supabase.from("profiles").select("role").eq("id",',
-      signInData.user.id,
-      ').single()'
-    )
-
     // Look up role from profiles to decide where to land
-    const profileRes = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', signInData.user.id)
       .single()
-
-    console.log('[login] profile query response:', profileRes)
-    console.log('[login]   data:', profileRes.data)
-    console.log('[login]   error:', profileRes.error)
-    if (profileRes.error) {
-      console.log('[login]   error.code:', profileRes.error.code)
-      console.log('[login]   error.message:', profileRes.error.message)
-      console.log('[login]   error.details:', profileRes.error.details)
-      console.log('[login]   error.hint:', profileRes.error.hint)
-    }
-
-    // Extra: show what an unscoped query returns to confirm RLS visibility
-    const allRowsRes = await supabase.from('profiles').select('id, role')
-    console.log(
-      '[login] sanity check — profiles visible to this user:',
-      allRowsRes
-    )
-    // ──────────────────────────────────────────────────────────────────────
-
-    const { data: profile, error: profileError } = profileRes
 
     if (profileError || !profile) {
       setError('Signed in, but no profile was found for this user.')

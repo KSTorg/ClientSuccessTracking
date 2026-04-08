@@ -25,22 +25,6 @@ export default async function ClientsPage() {
       .order('full_name'),
   ])
 
-  // ───── DEBUG (server logs in the Next dev terminal) ─────────────────────
-  console.log('[clients page] clients query:', {
-    count: clientsRes.data?.length ?? 0,
-    error: clientsRes.error,
-    sample: clientsRes.data?.[0],
-  })
-  console.log('[clients page] tasks query:', {
-    count: tasksRes.data?.length ?? 0,
-    error: tasksRes.error,
-  })
-  console.log('[clients page] csms query:', {
-    count: csmsRes.data?.length ?? 0,
-    error: csmsRes.error,
-  })
-  // ────────────────────────────────────────────────────────────────────────
-
   const clients = (clientsRes.data ?? []) as Client[]
   const tasks = (tasksRes.data ?? []) as {
     client_id: string
@@ -70,12 +54,5 @@ export default async function ClientsPage() {
     }
   })
 
-  return (
-    <ClientsView
-      clients={clientsWithStats}
-      csms={csms}
-      debugCount={clientsRes.data?.length ?? 0}
-      debugError={clientsRes.error?.message ?? null}
-    />
-  )
+  return <ClientsView clients={clientsWithStats} csms={csms} />
 }
