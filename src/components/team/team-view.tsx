@@ -104,9 +104,8 @@ export function TeamView({
   async function removeMember(member: TeamMember) {
     setRemoveError(null)
 
-    // Defensive guardrails — block any path that could wipe a profile by
-    // accident. The UI also disables ineligible options, but enforce here
-    // too in case state is stale.
+    // Client-side guardrails — same checks the API route also enforces, but
+    // bail early so we don't waste a network round-trip.
     if (member.id === currentUserId) {
       setRemoveError('You cannot remove your own account.')
       return
@@ -122,42 +121,35 @@ export function TeamView({
       return
     }
 
-    // Sanity-check against the live profiles row before deleting, in case
-    // their role changed in another tab since this view was rendered.
-    const { data: live, error: checkErr } = await supabase
-      .from('profiles')
-      .select('id, role')
-      .eq('id', member.id)
-      .maybeSingle()
-    if (checkErr) {
-      setRemoveError(checkErr.message)
-      return
-    }
-    if (!live) {
-      setRemoveError('That profile no longer exists.')
-      setMembers((m) => m.filter((x) => x.id !== member.id))
-      setConfirmRemove(null)
-      return
-    }
-    if (live.role !== 'csm') {
+    // Hand off to the server-side admin route, which deletes both the
+    // profile row and the auth.users row using the service_role key.
+    let res: Response
+    try {
+      res = await fetch('/api/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: member.id }),
+      })
+    } catch (err) {
+      console.error('[team] delete-user fetch failed:', err)
       setRemoveError(
-        `That member is now a ${live.role}; only CSMs can be removed.`
+        err instanceof Error ? err.message : 'Network error during delete.'
       )
       return
     }
 
-    // Scoped delete: id match AND role still 'csm'. Even if something else
-    // changes between the check and the delete, the role guard ensures we
-    // can never wipe an admin row.
-    const { error } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', member.id)
-      .eq('role', 'csm')
-    if (error) {
-      setRemoveError(error.message)
+    let data: { success?: boolean; error?: string } = {}
+    try {
+      data = await res.json()
+    } catch {
+      // ignore — fall through to status check below
+    }
+
+    if (!res.ok || !data.success) {
+      setRemoveError(data.error || `Delete failed (${res.status})`)
       return
     }
+
     setMembers((m) => m.filter((x) => x.id !== member.id))
     setConfirmRemove(null)
     router.refresh()
