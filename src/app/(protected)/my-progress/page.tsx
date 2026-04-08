@@ -10,11 +10,31 @@ export default async function MyProgressPage() {
   if (!data || !data.profile) redirect('/login')
 
   const supabase = await createClient()
-  const { data: client } = await supabase
+
+  // 1) Try the primary path: clients.user_id matches the signed-in user
+  let { data: client } = await supabase
     .from('clients')
     .select('id, company_name, launched_date')
     .eq('user_id', data.user.id)
     .maybeSingle()
+
+  // 2) Fallback: secondary contacts via client_contacts.user_id
+  if (!client) {
+    const { data: contactRow } = await supabase
+      .from('client_contacts')
+      .select('client_id')
+      .eq('user_id', data.user.id)
+      .maybeSingle()
+
+    if (contactRow?.client_id) {
+      const { data: viaContact } = await supabase
+        .from('clients')
+        .select('id, company_name, launched_date')
+        .eq('id', contactRow.client_id)
+        .maybeSingle()
+      if (viaContact) client = viaContact
+    }
+  }
 
   const name = data.profile.full_name ?? data.user.email ?? 'there'
 
