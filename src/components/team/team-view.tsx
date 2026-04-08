@@ -455,6 +455,7 @@ function InviteTeamModal({
       setSuccess(true)
       setTimeout(onInvited, 1500)
     } catch (err) {
+      console.error('[invite modal] inviteUser threw:', err)
       setError(err instanceof Error ? err.message : 'Could not invite user.')
       setLoading(false)
     }

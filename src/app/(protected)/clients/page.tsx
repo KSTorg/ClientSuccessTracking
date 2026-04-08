@@ -2,7 +2,7 @@ import { requireTeamMember } from '@/lib/auth/require-team'
 import { createClient } from '@/lib/supabase/server'
 import { ClientsView } from '@/components/clients/clients-view'
 import type {
-  ClientWithCsm,
+  Client,
   ClientWithCsmAndStats,
   CsmOption,
 } from '@/lib/types'
@@ -11,11 +11,12 @@ export default async function ClientsPage() {
   await requireTeamMember()
   const supabase = await createClient()
 
+  // Plain select on clients (no PostgREST embed). The previous version used
+  // `csm:profiles!assigned_csm(id, full_name)` which silently returned an
+  // empty list whenever PostgREST couldn't resolve the FK hint. We now join
+  // CSM names client-side using the separate csms query below.
   const [clientsRes, tasksRes, csmsRes] = await Promise.all([
-    supabase
-      .from('clients')
-      .select('*, csm:profiles!assigned_csm(id, full_name)')
-      .order('created_at', { ascending: false }),
+    supabase.from('clients').select('*').order('created_at', { ascending: false }),
     supabase.from('client_tasks').select('client_id, status'),
     supabase
       .from('profiles')
@@ -24,12 +25,31 @@ export default async function ClientsPage() {
       .order('full_name'),
   ])
 
-  const clients = (clientsRes.data ?? []) as ClientWithCsm[]
+  // ───── DEBUG (server logs in the Next dev terminal) ─────────────────────
+  console.log('[clients page] clients query:', {
+    count: clientsRes.data?.length ?? 0,
+    error: clientsRes.error,
+    sample: clientsRes.data?.[0],
+  })
+  console.log('[clients page] tasks query:', {
+    count: tasksRes.data?.length ?? 0,
+    error: tasksRes.error,
+  })
+  console.log('[clients page] csms query:', {
+    count: csmsRes.data?.length ?? 0,
+    error: csmsRes.error,
+  })
+  // ────────────────────────────────────────────────────────────────────────
+
+  const clients = (clientsRes.data ?? []) as Client[]
   const tasks = (tasksRes.data ?? []) as {
     client_id: string
     status: string
   }[]
   const csms = (csmsRes.data ?? []) as CsmOption[]
+
+  // CSM lookup by id (for joining client.assigned_csm → name)
+  const csmById = new Map(csms.map((c) => [c.id, c]))
 
   const stats = new Map<string, { total: number; completed: number }>()
   for (const t of tasks) {
@@ -41,7 +61,13 @@ export default async function ClientsPage() {
 
   const clientsWithStats: ClientWithCsmAndStats[] = clients.map((c) => {
     const s = stats.get(c.id) ?? { total: 0, completed: 0 }
-    return { ...c, task_total: s.total, task_completed: s.completed }
+    const csm = c.assigned_csm ? csmById.get(c.assigned_csm) ?? null : null
+    return {
+      ...c,
+      csm,
+      task_total: s.total,
+      task_completed: s.completed,
+    }
   })
 
   return <ClientsView clients={clientsWithStats} csms={csms} />
