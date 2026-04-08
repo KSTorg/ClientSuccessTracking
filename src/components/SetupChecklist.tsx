@@ -439,6 +439,27 @@ export function SetupChecklist({
         return
       }
 
+      // Fire-and-forget audit log — never block the UI on this, just warn
+      // in the console if the insert fails (missing table, RLS, etc.).
+      supabase
+        .from('activity_log')
+        .insert({
+          client_id: clientId,
+          client_task_id: clientTaskId,
+          action: 'status_change',
+          old_value: prevStatus,
+          new_value: next,
+          performed_by: currentUserId,
+        })
+        .then(({ error: logError }) => {
+          if (logError) {
+            console.warn(
+              '[checklist] activity_log insert failed:',
+              logError.message
+            )
+          }
+        })
+
       // Launch gate
       if (isLaunchTask) {
         if (next === 'completed' && !isLaunched) {
@@ -456,7 +477,14 @@ export function SetupChecklist({
         }
       }
     },
-    [rows, supabase, currentUserId, isLaunched, revertLaunchOnClient]
+    [
+      rows,
+      supabase,
+      currentUserId,
+      clientId,
+      isLaunched,
+      revertLaunchOnClient,
+    ]
   )
 
   // Confirm the pending launch (writes to clients table)
