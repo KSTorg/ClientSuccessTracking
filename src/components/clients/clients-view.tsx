@@ -149,22 +149,42 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
       ) : (
         <div className="glass-panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm table-fixed">
+            <table
+              className="w-full text-sm"
+              style={{ tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '18%' }} />
+              </colgroup>
               <thead>
                 <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
-                  <th className="px-3 py-3 font-medium">Company</th>
-                  <th className="px-3 py-3 font-medium w-[140px]">Contact</th>
-                  <th className="px-3 py-3 font-medium w-[110px]">Status</th>
-                  <th className="px-3 py-3 font-medium w-[80px] whitespace-nowrap">
-                    Program
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Company</div>
                   </th>
-                  <th className="px-3 py-3 font-medium w-[120px] whitespace-nowrap hidden lg:table-cell">
-                    CSM
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Contact</div>
                   </th>
-                  <th className="px-3 py-3 font-medium w-[100px] whitespace-nowrap hidden lg:table-cell">
-                    Joined
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Status</div>
                   </th>
-                  <th className="px-3 py-3 font-medium w-[100px]">Progress</th>
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Program</div>
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">CSM</div>
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Joined</div>
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Progress</div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -184,32 +204,42 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                       <td className="px-3 py-4">
                         <Link
                           href={`/clients/${c.id}`}
-                          className="block text-kst-white font-medium hover:text-kst-gold transition-colors truncate"
+                          className="block truncate text-kst-white font-medium hover:text-kst-gold transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {c.company_name}
                         </Link>
                       </td>
-                      <td className="px-3 py-4 text-kst-white truncate">
-                        {c.contact_name}
+                      <td className="px-3 py-4">
+                        <div className="truncate text-kst-white">
+                          {c.contact_name}
+                        </div>
                       </td>
                       <td className="px-3 py-4">
-                        <StatusBadge status={c.status} />
+                        <div className="truncate">
+                          <StatusBadge status={c.status} />
+                        </div>
                       </td>
                       <td className="px-3 py-4">
-                        <ProgramBadge program={c.program} short />
+                        <div className="truncate">
+                          <ProgramBadge program={c.program} short />
+                        </div>
                       </td>
-                      <td className="px-3 py-4 truncate hidden lg:table-cell">
-                        {c.csm?.full_name ? (
-                          <span className="text-kst-white">
-                            {c.csm.full_name}
-                          </span>
-                        ) : (
-                          <span className="text-kst-muted">Unassigned</span>
-                        )}
+                      <td className="px-3 py-4">
+                        <div className="truncate">
+                          {c.csm?.full_name ? (
+                            <span className="text-kst-white">
+                              {c.csm.full_name}
+                            </span>
+                          ) : (
+                            <span className="text-kst-muted">Unassigned</span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-3 py-4 text-kst-muted hidden lg:table-cell whitespace-nowrap">
-                        {formatDate(c.joined_date ?? c.created_at)}
+                      <td className="px-3 py-4">
+                        <div className="truncate text-kst-muted">
+                          {formatDate(c.joined_date ?? c.created_at)}
+                        </div>
                       </td>
                       <td className="px-3 py-4">
                         <div className="flex items-center gap-2">
@@ -219,7 +249,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="text-kst-muted text-xs w-8 text-right">
+                          <span className="text-kst-muted text-xs w-8 text-right shrink-0">
                             {pct}%
                           </span>
                         </div>
