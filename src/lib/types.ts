@@ -38,6 +38,22 @@ export interface CsmOption {
   specialty?: Specialty | null
 }
 
+export interface ClientTeam {
+  csm: string | null
+  ads: string | null
+  systems: string | null
+  organic: string | null
+  sales: string | null
+}
+
+export const EMPTY_CLIENT_TEAM: ClientTeam = {
+  csm: null,
+  ads: null,
+  systems: null,
+  organic: null,
+  sales: null,
+}
+
 export interface Client {
   id: string
   company_name: string
@@ -45,6 +61,7 @@ export interface Client {
   contact_email: string
   status: ClientStatus
   assigned_csm: string | null
+  client_team: ClientTeam | null
   joined_date: string | null
   launched_date: string | null
   notes: string | null

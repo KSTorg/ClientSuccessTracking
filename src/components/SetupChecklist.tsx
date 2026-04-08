@@ -23,6 +23,7 @@ import {
   type Program,
   type Specialty,
 } from '@/lib/types'
+import { SpecialtyBadge } from '@/components/team/specialty-badge'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -892,8 +893,9 @@ function TopLevelTask({
 
         {!hideLinksForClient && <TaskLinks task={ct.task} />}
 
-        {/* Assignee display — team view shows name/picker, client view shows
-            a "Team" badge when the task is owned by a team member. */}
+        {/* Assignee display — team view shows the reassign picker, client
+            view shows the assignee's first name when a team member owns the
+            task. Both views skip this for parent (has_subtasks) rows. */}
         {!hasSubs && (
           <div onClick={(e) => e.stopPropagation()}>
             {isTeamView ? (
@@ -904,9 +906,11 @@ function TopLevelTask({
                 onChange={(next) => onReassign(ct.id, next)}
               />
             ) : isTeamOwnedForClient ? (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-white/15 text-kst-muted shrink-0">
-                Team
-              </span>
+              <TeamAssigneeTag
+                assignee={
+                  ct.assigned_to ? teamById.get(ct.assigned_to) ?? null : null
+                }
+              />
             ) : null}
           </div>
         )}
@@ -1008,9 +1012,12 @@ function SubtaskRow({
           compact
         />
       ) : isTeamOwnedForClient ? (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-white/15 text-kst-muted shrink-0">
-          Team
-        </span>
+        <TeamAssigneeTag
+          assignee={
+            ct.assigned_to ? teamById.get(ct.assigned_to) ?? null : null
+          }
+          compact
+        />
       ) : null}
     </div>
   )
@@ -1123,6 +1130,38 @@ function StatusPicker({
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Team assignee tag (client view, read-only)
+// ───────────────────────────────────────────────────────────────────────────
+
+function TeamAssigneeTag({
+  assignee,
+  compact,
+}: {
+  assignee: ChecklistTeamMember | null
+  compact?: boolean
+}) {
+  const first =
+    (assignee?.full_name ?? '').trim().split(/\s+/)[0] ?? 'Team'
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full font-medium border border-white/15 text-kst-muted shrink-0',
+        compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'
+      )}
+    >
+      {assignee ? (
+        <>
+          <span className="w-1.5 h-1.5 rounded-full bg-kst-gold/70" />
+          {first}
+        </>
+      ) : (
+        'Team'
+      )}
+    </span>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Assignee picker (dropdown grouped by specialty)
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -1201,6 +1240,9 @@ function AssigneePicker({
     ? 'h-7 w-7 text-[10px]'
     : 'h-8 w-8 text-[10px]'
 
+  const assigneeFirstName =
+    (assignee?.full_name ?? '').trim().split(/\s+/)[0] ?? ''
+
   return (
     <div ref={ref} className="relative shrink-0">
       <button
@@ -1212,15 +1254,25 @@ function AssigneePicker({
         aria-expanded={open}
       >
         {assignee ? (
-          <div
-            className={cn(
-              'rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center bg-white/[0.02] font-semibold',
-              sizeCls
+          <>
+            <div
+              className={cn(
+                'rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center bg-white/[0.02] font-semibold shrink-0',
+                sizeCls
+              )}
+              title={assignee.full_name ?? 'Unnamed'}
+            >
+              {initialsOf(assignee.full_name)}
+            </div>
+            <span className="hidden sm:inline text-[11px] text-kst-white whitespace-nowrap max-w-[8rem] truncate">
+              {assigneeFirstName || 'Unnamed'}
+            </span>
+            {assignee.specialty && (
+              <span className="hidden md:inline">
+                <SpecialtyBadge specialty={assignee.specialty} />
+              </span>
             )}
-            title={assignee.full_name ?? 'Unnamed'}
-          >
-            {initialsOf(assignee.full_name)}
-          </div>
+          </>
         ) : (
           <span className="text-[11px] text-kst-muted italic px-1">
             Unassigned

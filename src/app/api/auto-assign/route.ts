@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       .in('role', ['admin', 'csm']),
     supabaseAdmin
       .from('clients')
-      .select('assigned_csm')
+      .select('assigned_csm, client_team')
       .eq('id', clientId)
       .single(),
     // Global assignment counts across ALL clients, for load balancing
@@ -125,9 +125,19 @@ export async function POST(request: NextRequest) {
   })
 
   const team = (teamRes.data ?? []) as TeamMember[]
-  const clientCsmId =
-    (clientRes.data as { assigned_csm: string | null } | null)?.assigned_csm ??
-    null
+  const clientRow = clientRes.data as {
+    assigned_csm: string | null
+    client_team: {
+      csm: string | null
+      ads: string | null
+      systems: string | null
+      organic: string | null
+      sales: string | null
+    } | null
+  } | null
+  const clientTeam = clientRow?.client_team ?? null
+  // Prefer the new client_team.csm, fall back to the legacy assigned_csm
+  const clientCsmId = clientTeam?.csm ?? clientRow?.assigned_csm ?? null
 
   // Build a global count map: user_id -> number of client_tasks assigned
   const counts = new Map<string, number>()
@@ -165,24 +175,33 @@ export async function POST(request: NextRequest) {
       updates.push({ id: t.id, assigned_to: null })
     }
   } else {
-    // Accelerator: specialty-matched, load-balanced, CSM fallback
+    // Accelerator: honor the client_team slot first; fall back to
+    // load-balanced specialty search; final fallback is the client's CSM.
     for (const t of tasks) {
       const spec = t.task?.default_specialty ?? null
       let assigneeId: string | null = null
 
       if (spec) {
-        const candidates = bySpecialty.get(spec) ?? []
-        const picked = pickLeastLoaded(candidates)
-        if (picked) {
-          assigneeId = picked.id
-          counts.set(picked.id, (counts.get(picked.id) ?? 0) + 1)
-        } else if (clientCsmId) {
-          // No specialist — fall back to the assigned CSM
-          assigneeId = clientCsmId
-          counts.set(clientCsmId, (counts.get(clientCsmId) ?? 0) + 1)
+        // 1) Per-client slot (client_team.ads, .systems, .organic, .sales)
+        const slotId = clientTeam ? clientTeam[spec] ?? null : null
+        if (slotId) {
+          assigneeId = slotId
+          counts.set(slotId, (counts.get(slotId) ?? 0) + 1)
+        } else {
+          // 2) Load-balanced global search within the specialty
+          const candidates = bySpecialty.get(spec) ?? []
+          const picked = pickLeastLoaded(candidates)
+          if (picked) {
+            assigneeId = picked.id
+            counts.set(picked.id, (counts.get(picked.id) ?? 0) + 1)
+          } else if (clientCsmId) {
+            // 3) No specialist anywhere — fall back to the client's CSM
+            assigneeId = clientCsmId
+            counts.set(clientCsmId, (counts.get(clientCsmId) ?? 0) + 1)
+          }
         }
       } else {
-        // No specialty — fall back to CSM (client handles if no CSM)
+        // No specialty on the task → assign to the client's CSM
         if (clientCsmId) {
           assigneeId = clientCsmId
           counts.set(clientCsmId, (counts.get(clientCsmId) ?? 0) + 1)

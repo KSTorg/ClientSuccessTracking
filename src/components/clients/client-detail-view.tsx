@@ -20,13 +20,16 @@ import {
   ContactsSection,
   type ClientContact,
 } from '@/components/clients/contacts-section'
+import { ClientTeamSection } from '@/components/clients/client-team-section'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { ProgramBadge } from '@/components/clients/program-badge'
 import type { Role } from '@/lib/supabase/get-user'
 import { cn, formatDate } from '@/lib/utils'
 import {
   CLIENT_STATUSES,
+  EMPTY_CLIENT_TEAM,
   type ClientStatus,
+  type ClientTeam,
   type ClientWithCsm,
   type CsmOption,
 } from '@/lib/types'
@@ -66,7 +69,6 @@ export function ClientDetailView({
   const supabase = createClient()
 
   const [status, setStatus] = useState<ClientStatus>(client.status)
-  const [csmId, setCsmId] = useState<string>(client.assigned_csm ?? '')
   const [launchedDate, setLaunchedDate] = useState<string | null>(
     client.launched_date
   )
@@ -74,7 +76,7 @@ export function ClientDetailView({
     total: number
     completed: number
   } | null>(null)
-  const [savingField, setSavingField] = useState<'status' | 'csm' | null>(null)
+  const [savingField, setSavingField] = useState<'status' | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const tab = searchParams.get('tab')
     if (tab === 'success' && client.launched_date) return 'success'
@@ -152,23 +154,6 @@ export function ClientDetailView({
     }
   }
 
-  async function handleCsmChange(nextId: string) {
-    const prev = csmId
-    setCsmId(nextId)
-    setSavingField('csm')
-    const { error } = await supabase
-      .from('clients')
-      .update({ assigned_csm: nextId || null })
-      .eq('id', client.id)
-    setSavingField(null)
-    if (error) {
-      setCsmId(prev)
-      alert(`Could not update CSM: ${error.message}`)
-    } else {
-      router.refresh()
-    }
-  }
-
   async function handleSaveNotes() {
     setSavingNotes(true)
     setNotesSaved(false)
@@ -238,7 +223,7 @@ export function ClientDetailView({
           </span>
           <ProgramBadge program={client.program} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div>
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Status
@@ -247,18 +232,6 @@ export function ClientDetailView({
               value={status}
               disabled={savingField === 'status'}
               onChange={handleStatusChange}
-            />
-          </div>
-
-          <div>
-            <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
-              Assigned CSM
-            </p>
-            <CsmPicker
-              value={csmId}
-              csms={csms}
-              disabled={savingField === 'csm'}
-              onChange={handleCsmChange}
             />
           </div>
 
@@ -312,6 +285,18 @@ export function ClientDetailView({
         legacyContactName={client.contact_name}
         legacyContactEmail={client.contact_email}
         currentUserRole={currentUserRole}
+      />
+
+      {/* Client Team */}
+      <ClientTeamSection
+        clientId={client.id}
+        initialTeam={
+          client.client_team ?? {
+            ...EMPTY_CLIENT_TEAM,
+            csm: client.assigned_csm ?? null,
+          }
+        }
+        teamMembers={csms}
       />
 
       {/* Launch banner */}
@@ -640,102 +625,3 @@ function ClientStatusPicker({
   )
 }
 
-function CsmPicker({
-  value,
-  csms,
-  disabled,
-  onChange,
-}: {
-  value: string
-  csms: CsmOption[]
-  disabled?: boolean
-  onChange: (id: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, open, () => setOpen(false))
-
-  const selected = csms.find((c) => c.id === value) ?? null
-
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 h-10 px-4 rounded-full glass-panel-sm text-sm disabled:opacity-60 hover:bg-white/[0.04] transition-colors"
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        {selected ? (
-          <span className="text-kst-white">
-            {selected.full_name ?? 'Unnamed'}
-          </span>
-        ) : (
-          <span className="text-kst-muted">Unassigned</span>
-        )}
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute z-50 left-0 top-full mt-2 min-w-[220px] max-h-72 overflow-y-auto kst-dropdown p-1 kst-fade-in"
-        >
-          <PickerOption
-            active={value === ''}
-            onClick={() => {
-              onChange('')
-              setOpen(false)
-            }}
-          >
-            <span className="text-kst-muted italic">Unassigned</span>
-          </PickerOption>
-          {csms.map((c) => {
-            const active = c.id === value
-            return (
-              <PickerOption
-                key={c.id}
-                active={active}
-                onClick={() => {
-                  onChange(c.id)
-                  setOpen(false)
-                }}
-              >
-                <span
-                  className={cn(active ? 'text-kst-white' : 'text-kst-muted')}
-                >
-                  {c.full_name ?? 'Unnamed'}
-                </span>
-              </PickerOption>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function PickerOption({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={active}
-      onClick={onClick}
-      className={cn(
-        'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
-        active && 'bg-kst-gold/10'
-      )}
-    >
-      <span className="flex-1">{children}</span>
-      {active && <Check size={14} className="text-kst-gold" />}
-    </button>
-  )
-}

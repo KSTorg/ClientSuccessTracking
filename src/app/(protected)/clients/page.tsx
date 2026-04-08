@@ -45,7 +45,9 @@ export default async function ClientsPage() {
 
   const clientsWithStats: ClientWithCsmAndStats[] = clients.map((c) => {
     const s = stats.get(c.id) ?? { total: 0, completed: 0 }
-    const csm = c.assigned_csm ? csmById.get(c.assigned_csm) ?? null : null
+    // Prefer the new client_team.csm; fall back to the legacy assigned_csm
+    const csmId = c.client_team?.csm ?? c.assigned_csm ?? null
+    const csm = csmId ? csmById.get(csmId) ?? null : null
     return {
       ...c,
       csm,
