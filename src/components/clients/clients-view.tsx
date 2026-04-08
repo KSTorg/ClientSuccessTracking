@@ -158,8 +158,10 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                     Email
                   </th>
                   <th className="px-4 py-3 font-medium w-[100px]">Status</th>
-                  <th className="px-4 py-3 font-medium w-[60px]">Program</th>
-                  <th className="px-4 py-3 font-medium w-[100px] hidden lg:table-cell">
+                  <th className="px-4 py-3 font-medium w-[90px] whitespace-nowrap">
+                    Program
+                  </th>
+                  <th className="px-4 py-3 font-medium w-[100px] whitespace-nowrap hidden lg:table-cell">
                     CSM
                   </th>
                   <th className="px-4 py-3 font-medium w-[90px] hidden lg:table-cell">
