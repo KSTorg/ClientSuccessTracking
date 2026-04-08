@@ -209,7 +209,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-client-title"

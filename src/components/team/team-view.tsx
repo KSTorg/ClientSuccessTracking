@@ -619,7 +619,7 @@ function InviteTeamModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
       role="dialog"
       aria-modal="true"
     >
@@ -735,7 +735,7 @@ function ConfirmRemoveModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
       role="dialog"
       aria-modal="true"
     >
