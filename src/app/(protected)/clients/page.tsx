@@ -14,7 +14,7 @@ export default async function ClientsPage() {
   const [clientsRes, tasksRes, csmsRes] = await Promise.all([
     supabase
       .from('clients')
-      .select('*, csm:profiles!csm_id(id, full_name)')
+      .select('*, csm:profiles!assigned_csm(id, full_name)')
       .order('created_at', { ascending: false }),
     supabase.from('client_tasks').select('client_id, status'),
     supabase

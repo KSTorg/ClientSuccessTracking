@@ -84,7 +84,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       contact_name: contactName.trim(),
       contact_email: contactEmail.trim(),
       joined_date: joinedDate || null,
-      csm_id: csmId || null,
+      assigned_csm: csmId || null,
       notes: notes.trim() || null,
       status: 'onboarding',
     })

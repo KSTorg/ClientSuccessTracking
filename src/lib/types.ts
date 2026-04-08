@@ -18,7 +18,7 @@ export interface Client {
   contact_name: string
   contact_email: string
   status: ClientStatus
-  csm_id: string | null
+  assigned_csm: string | null
   joined_date: string | null
   launched_date: string | null
   notes: string | null

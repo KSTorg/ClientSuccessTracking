@@ -17,7 +17,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
   const [clientRes, csmsRes] = await Promise.all([
     supabase
       .from('clients')
-      .select('*, csm:profiles!csm_id(id, full_name)')
+      .select('*, csm:profiles!assigned_csm(id, full_name)')
       .eq('id', id)
       .single(),
     supabase

@@ -32,7 +32,7 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
   const supabase = createClient()
 
   const [status, setStatus] = useState<ClientStatus>(client.status)
-  const [csmId, setCsmId] = useState<string>(client.csm_id ?? '')
+  const [csmId, setCsmId] = useState<string>(client.assigned_csm ?? '')
   const [savingField, setSavingField] = useState<'status' | 'csm' | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('setup')
 
@@ -68,7 +68,7 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
     setSavingField('csm')
     const { error } = await supabase
       .from('clients')
-      .update({ csm_id: nextId || null })
+      .update({ assigned_csm: nextId || null })
       .eq('id', client.id)
     setSavingField(null)
     if (error) {
