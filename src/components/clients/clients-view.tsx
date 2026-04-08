@@ -154,13 +154,13 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
               style={{ tableLayout: 'fixed' }}
             >
               <colgroup>
-                <col style={{ width: '22%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '12%' }} />
                 <col style={{ width: '18%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '20%' }} />
               </colgroup>
               <thead>
                 <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
@@ -222,7 +222,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                       </td>
                       <td className="px-3 py-4">
                         <div className="truncate">
-                          <ProgramBadge program={c.program} short />
+                          <ProgramBadge program={c.program} />
                         </div>
                       </td>
                       <td className="px-3 py-4">
