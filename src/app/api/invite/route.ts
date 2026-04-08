@@ -7,6 +7,7 @@ interface InviteBody {
   fullName?: string
   role?: 'admin' | 'csm' | 'client'
   password?: string
+  specialty?: 'ads' | 'systems' | 'organic' | 'sales' | null
 }
 
 export async function POST(request: NextRequest) {
@@ -52,6 +53,10 @@ export async function POST(request: NextRequest) {
   const fullName = body.fullName?.trim()
   const role = body.role
   const password = body.password
+  const specialty =
+    body.specialty && ['ads', 'systems', 'organic', 'sales'].includes(body.specialty)
+      ? body.specialty
+      : null
 
   if (!email || !fullName || !role || !password) {
     return NextResponse.json(
@@ -133,6 +138,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         email,
         role,
+        specialty: role === 'client' ? null : specialty,
       },
       { onConflict: 'id' }
     )

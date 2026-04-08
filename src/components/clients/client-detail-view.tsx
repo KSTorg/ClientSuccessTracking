@@ -21,6 +21,7 @@ import {
   type ClientContact,
 } from '@/components/clients/contacts-section'
 import { StatusBadge } from '@/components/clients/status-badge'
+import { ProgramBadge } from '@/components/clients/program-badge'
 import type { Role } from '@/lib/supabase/get-user'
 import { cn, formatDate } from '@/lib/utils'
 import {
@@ -231,6 +232,12 @@ export function ClientDetailView({
 
       {/* Info bar */}
       <div className="glass-panel-sm p-5 mb-6">
+        <div className="flex items-center gap-3 mb-5 pb-5 border-b border-white/[0.05]">
+          <span className="text-xs uppercase tracking-wider text-kst-muted">
+            Program
+          </span>
+          <ProgramBadge program={client.program} />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div>
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
@@ -339,6 +346,12 @@ export function ClientDetailView({
             isTeamView
             clientName={client.company_name}
             isLaunched={isLaunched}
+            program={client.program}
+            teamMembers={csms.map((c) => ({
+              id: c.id,
+              full_name: c.full_name,
+              specialty: c.specialty ?? null,
+            }))}
             onLaunchedChange={handleLaunchedChange}
             onStage12ProgressChange={handleStage12Progress}
           />

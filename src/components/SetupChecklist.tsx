@@ -18,6 +18,11 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import {
+  SPECIALTY_LABELS,
+  type Program,
+  type Specialty,
+} from '@/lib/types'
 
 // ───────────────────────────────────────────────────────────────────────────
 // Types
@@ -45,6 +50,8 @@ interface TaskRow {
   doc_url: string | null
   extra_links: Record<string, string> | null
   order_index: number
+  default_specialty: Specialty | null
+  client_facing_accelerator: boolean | null
   stage: StageRow | null
 }
 
@@ -54,6 +61,7 @@ interface ClientTaskJoined {
   task_id: string
   status: TaskStatus
   completed_at: string | null
+  assigned_to: string | null
   task: TaskRow | null
 }
 
@@ -67,11 +75,19 @@ interface Stage12Progress {
   completed: number
 }
 
+export interface ChecklistTeamMember {
+  id: string
+  full_name: string | null
+  specialty: Specialty | null
+}
+
 interface SetupChecklistProps {
   clientId: string
   isTeamView: boolean
   clientName?: string
   isLaunched?: boolean
+  program?: Program
+  teamMembers?: ChecklistTeamMember[]
   onLaunchedChange?: (launchedDate: string | null) => void
   onStage12ProgressChange?: (progress: Stage12Progress) => void
 }
@@ -203,6 +219,8 @@ export function SetupChecklist({
   isTeamView,
   clientName,
   isLaunched = false,
+  program = 'educator_incubator',
+  teamMembers = [],
   onLaunchedChange,
   onStage12ProgressChange,
 }: SetupChecklistProps) {
@@ -231,10 +249,11 @@ export function SetupChecklist({
           .from('client_tasks')
           .select(
             `
-            id, client_id, task_id, status, completed_at,
+            id, client_id, task_id, status, completed_at, assigned_to,
             task:tasks (
               id, parent_task_id, has_subtasks, title, description,
               training_url, doc_url, extra_links, order_index,
+              default_specialty, client_facing_accelerator,
               stage:stages ( id, name, order_index )
             )
             `
@@ -268,6 +287,7 @@ export function SetupChecklist({
           task_id: r.task_id as string,
           status: r.status as TaskStatus,
           completed_at: (r.completed_at as string | null) ?? null,
+          assigned_to: (r.assigned_to as string | null) ?? null,
           task: taskRaw ? { ...taskRaw, stage } : null,
         }
       })
@@ -440,6 +460,42 @@ export function SetupChecklist({
     setPendingLaunch(null)
   }, [pendingLaunch, supabase, clientId, onLaunchedChange])
 
+  // Reassign a task to a different team member (or null for Unassigned)
+  const reassignTask = useCallback(
+    async (clientTaskId: string, nextAssigneeId: string | null) => {
+      const prev = rows.find((r) => r.id === clientTaskId)
+      if (!prev) return
+      const prevAssignee = prev.assigned_to
+      setRows((rs) =>
+        rs.map((r) =>
+          r.id === clientTaskId ? { ...r, assigned_to: nextAssigneeId } : r
+        )
+      )
+      const { error } = await supabase
+        .from('client_tasks')
+        .update({ assigned_to: nextAssigneeId })
+        .eq('id', clientTaskId)
+      if (error) {
+        setRows((rs) =>
+          rs.map((r) =>
+            r.id === clientTaskId
+              ? { ...r, assigned_to: prevAssignee }
+              : r
+          )
+        )
+        setToast(`Couldn't reassign task: ${error.message}`)
+      }
+    },
+    [rows, supabase]
+  )
+
+  // Lookup helper for assignee display
+  const teamById = useMemo(() => {
+    const m = new Map<string, ChecklistTeamMember>()
+    for (const t of teamMembers) m.set(t.id, t)
+    return m
+  }, [teamMembers])
+
   // Cancel the pending launch — revert the task back to its previous status
   const cancelLaunch = useCallback(async () => {
     if (!pendingLaunch) return
@@ -598,7 +654,11 @@ export function SetupChecklist({
                           : []
                       }
                       isTeamView={isTeamView}
+                      program={program}
+                      teamMembers={teamMembers}
+                      teamById={teamById}
                       onSetStatus={updateTaskStatus}
+                      onReassign={reassignTask}
                       isParentExpanded={openParents[ct.id] ?? false}
                       toggleParent={() =>
                         setOpenParents((p) => ({
@@ -704,7 +764,11 @@ interface TopLevelTaskProps {
   ct: ClientTaskJoined
   subs: ClientTaskJoined[]
   isTeamView: boolean
+  program: Program
+  teamMembers: ChecklistTeamMember[]
+  teamById: Map<string, ChecklistTeamMember>
   onSetStatus: (id: string, next: TaskStatus) => void
+  onReassign: (id: string, next: string | null) => void
   isParentExpanded: boolean
   toggleParent: () => void
 }
@@ -713,7 +777,11 @@ function TopLevelTask({
   ct,
   subs,
   isTeamView,
+  program,
+  teamMembers,
+  teamById,
   onSetStatus,
+  onReassign,
   isParentExpanded,
   toggleParent,
 }: TopLevelTaskProps) {
@@ -733,6 +801,20 @@ function TopLevelTask({
       (a, b) => GROUP_ORDER.indexOf(a[0]) - GROUP_ORDER.indexOf(b[0])
     )
   }, [subs])
+
+  // Accelerator gating for client view:
+  //  - if the task is assigned to a team member, clients see it as read-only
+  //    (show the glyph but don't let them cycle it)
+  //  - hide training/doc links when client_facing_accelerator === false
+  const isTeamOwnedForClient =
+    !isTeamView &&
+    program === 'accelerator' &&
+    !hasSubs &&
+    ct.assigned_to !== null
+  const hideLinksForClient =
+    !isTeamView &&
+    program === 'accelerator' &&
+    ct.task?.client_facing_accelerator === false
 
   return (
     <div>
@@ -758,6 +840,10 @@ function TopLevelTask({
         {hasSubs ? (
           <div className="mt-0.5">
             <StatusGlyph status={effective} />
+          </div>
+        ) : isTeamOwnedForClient ? (
+          <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+            <StatusGlyph status={ct.status} />
           </div>
         ) : (
           <div onClick={(e) => e.stopPropagation()}>
@@ -804,7 +890,26 @@ function TopLevelTask({
           )}
         </div>
 
-        <TaskLinks task={ct.task} />
+        {!hideLinksForClient && <TaskLinks task={ct.task} />}
+
+        {/* Assignee display — team view shows name/picker, client view shows
+            a "Team" badge when the task is owned by a team member. */}
+        {!hasSubs && (
+          <div onClick={(e) => e.stopPropagation()}>
+            {isTeamView ? (
+              <AssigneePicker
+                assigneeId={ct.assigned_to}
+                teamMembers={teamMembers}
+                teamById={teamById}
+                onChange={(next) => onReassign(ct.id, next)}
+              />
+            ) : isTeamOwnedForClient ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-white/15 text-kst-muted shrink-0">
+                Team
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {hasSubs && isParentExpanded && (
@@ -828,7 +933,11 @@ function TopLevelTask({
                     key={s.id}
                     ct={s}
                     isTeamView={isTeamView}
+                    program={program}
+                    teamMembers={teamMembers}
+                    teamById={teamById}
                     onSetStatus={onSetStatus}
+                    onReassign={onReassign}
                   />
                 ))}
               </div>
@@ -843,19 +952,40 @@ function TopLevelTask({
 function SubtaskRow({
   ct,
   isTeamView,
+  program,
+  teamMembers,
+  teamById,
   onSetStatus,
+  onReassign,
 }: {
   ct: ClientTaskJoined
   isTeamView: boolean
+  program: Program
+  teamMembers: ChecklistTeamMember[]
+  teamById: Map<string, ChecklistTeamMember>
   onSetStatus: (id: string, next: TaskStatus) => void
+  onReassign: (id: string, next: string | null) => void
 }) {
+  const isTeamOwnedForClient =
+    !isTeamView && program === 'accelerator' && ct.assigned_to !== null
+  const hideLinksForClient =
+    !isTeamView &&
+    program === 'accelerator' &&
+    ct.task?.client_facing_accelerator === false
+
   return (
     <div className="group flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors">
-      <StatusPicker
-        status={ct.status}
-        isTeamView={isTeamView}
-        onChange={(next) => onSetStatus(ct.id, next)}
-      />
+      {isTeamOwnedForClient ? (
+        <div className="mt-0.5">
+          <StatusGlyph status={ct.status} />
+        </div>
+      ) : (
+        <StatusPicker
+          status={ct.status}
+          isTeamView={isTeamView}
+          onChange={(next) => onSetStatus(ct.id, next)}
+        />
+      )}
       <div className="flex-1 min-w-0">
         <p
           className={cn(
@@ -868,7 +998,20 @@ function SubtaskRow({
           {displaySubtaskTitle(ct.task?.title ?? '')}
         </p>
       </div>
-      <TaskLinks task={ct.task} small />
+      {!hideLinksForClient && <TaskLinks task={ct.task} small />}
+      {isTeamView ? (
+        <AssigneePicker
+          assigneeId={ct.assigned_to}
+          teamMembers={teamMembers}
+          teamById={teamById}
+          onChange={(next) => onReassign(ct.id, next)}
+          compact
+        />
+      ) : isTeamOwnedForClient ? (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border border-white/15 text-kst-muted shrink-0">
+          Team
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -973,6 +1116,178 @@ function StatusPicker({
               </button>
             )
           })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Assignee picker (dropdown grouped by specialty)
+// ───────────────────────────────────────────────────────────────────────────
+
+function initialsOf(name: string | null): string {
+  const t = (name ?? '').trim()
+  if (!t) return '?'
+  const parts = t.split(/\s+/)
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
+}
+
+const SPECIALTY_GROUP_ORDER: (Specialty | 'none')[] = [
+  'ads',
+  'systems',
+  'organic',
+  'sales',
+  'none',
+]
+
+function AssigneePicker({
+  assigneeId,
+  teamMembers,
+  teamById,
+  onChange,
+  compact,
+}: {
+  assigneeId: string | null
+  teamMembers: ChecklistTeamMember[]
+  teamById: Map<string, ChecklistTeamMember>
+  onChange: (next: string | null) => void
+  compact?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [flipUp, setFlipUp] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    setFlipUp(spaceBelow < 260)
+  }, [open])
+
+  const assignee = assigneeId ? teamById.get(assigneeId) ?? null : null
+
+  // Group members by specialty
+  const grouped = useMemo(() => {
+    const m = new Map<Specialty | 'none', ChecklistTeamMember[]>()
+    for (const t of teamMembers) {
+      const key = (t.specialty ?? 'none') as Specialty | 'none'
+      if (!m.has(key)) m.set(key, [])
+      m.get(key)!.push(t)
+    }
+    return SPECIALTY_GROUP_ORDER.map(
+      (k) => [k, m.get(k) ?? []] as const
+    ).filter(([, arr]) => arr.length > 0)
+  }, [teamMembers])
+
+  const sizeCls = compact
+    ? 'h-7 w-7 text-[10px]'
+    : 'h-8 w-8 text-[10px]'
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        aria-label="Assign task"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {assignee ? (
+          <div
+            className={cn(
+              'rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center bg-white/[0.02] font-semibold',
+              sizeCls
+            )}
+            title={assignee.full_name ?? 'Unnamed'}
+          >
+            {initialsOf(assignee.full_name)}
+          </div>
+        ) : (
+          <span className="text-[11px] text-kst-muted italic px-1">
+            Unassigned
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className={cn(
+            'absolute z-50 right-0 min-w-[220px] max-h-[280px] overflow-y-auto kst-dropdown p-1 kst-fade-in',
+            flipUp ? 'bottom-full mb-2' : 'top-full mt-2'
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null)
+              setOpen(false)
+            }}
+            className={cn(
+              'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+              assigneeId === null && 'bg-kst-gold/10'
+            )}
+          >
+            <span className="text-kst-muted italic">Unassigned</span>
+            {assigneeId === null && <Check size={13} className="text-kst-gold" />}
+          </button>
+          {grouped.map(([groupKey, members]) => (
+            <div key={groupKey}>
+              <p className="text-[9px] uppercase tracking-wider text-kst-muted/70 px-3 pt-2 pb-1">
+                {groupKey === 'none' ? 'Other' : SPECIALTY_LABELS[groupKey]}
+              </p>
+              {members.map((m) => {
+                const active = m.id === assigneeId
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(m.id)
+                      setOpen(false)
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+                      active && 'bg-kst-gold/10'
+                    )}
+                  >
+                    <div className="w-7 h-7 rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center text-[10px] font-semibold bg-white/[0.02] shrink-0">
+                      {initialsOf(m.full_name)}
+                    </div>
+                    <span
+                      className={cn(
+                        'flex-1 truncate',
+                        active ? 'text-kst-white' : 'text-kst-muted'
+                      )}
+                    >
+                      {m.full_name ?? 'Unnamed'}
+                    </span>
+                    {active && (
+                      <Check size={13} className="text-kst-gold shrink-0" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          ))}
         </div>
       )}
     </div>

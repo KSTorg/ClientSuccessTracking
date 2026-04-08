@@ -6,7 +6,7 @@ import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/supabase/invite'
 import { cn } from '@/lib/utils'
-import type { CsmOption } from '@/lib/types'
+import type { CsmOption, Program } from '@/lib/types'
 
 interface AddClientModalProps {
   open: boolean
@@ -29,6 +29,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   const supabase = createClient()
 
   const today = new Date().toISOString().slice(0, 10)
+  const [program, setProgram] = useState<Program>('educator_incubator')
   const [companyName, setCompanyName] = useState('')
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -43,6 +44,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   // Reset state when the modal closes
   useEffect(() => {
     if (!open) {
+      setProgram('educator_incubator')
       setCompanyName('')
       setContactName('')
       setContactEmail('')
@@ -97,6 +99,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
         assigned_csm: csmId || null,
         notes: notes.trim() || null,
         status: 'onboarding',
+        program,
       })
       .select('id')
       .single()
@@ -161,6 +164,25 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       )
     }
 
+    // 5) Auto-assign client_tasks based on program. Non-fatal on failure —
+    // the client is fully functional, assignments can be fixed manually.
+    try {
+      const assignRes = await fetch('/api/auto-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, program }),
+      })
+      if (!assignRes.ok) {
+        const body = await assignRes.json().catch(() => ({}))
+        console.warn(
+          '[add client] auto-assign failed:',
+          body?.error ?? assignRes.status
+        )
+      }
+    } catch (err) {
+      console.warn('[add client] auto-assign threw:', err)
+    }
+
     setLoading(false)
     onClose()
     router.refresh()
@@ -200,6 +222,28 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
         </h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <span className="block text-xs uppercase tracking-wider text-kst-muted mb-2">
+              Program
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ProgramCard
+                title="Educator Incubator"
+                subtitle="Client handles setup with our training & guidance"
+                selected={program === 'educator_incubator'}
+                onClick={() => setProgram('educator_incubator')}
+                disabled={loading}
+              />
+              <ProgramCard
+                title="Accelerator"
+                subtitle="Done-for-you setup by our team"
+                selected={program === 'accelerator'}
+                onClick={() => setProgram('accelerator')}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
           <Field label="Company Name" error={fieldErrors.company_name}>
             <input
               type="text"
@@ -338,5 +382,50 @@ function Field({
       {children}
       {error && <span className="text-kst-error text-xs">{error}</span>}
     </label>
+  )
+}
+
+function ProgramCard({
+  title,
+  subtitle,
+  selected,
+  onClick,
+  disabled,
+}: {
+  title: string
+  subtitle: string
+  selected: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'glass-panel-sm text-left p-4 transition-all disabled:opacity-60',
+        selected
+          ? 'border-kst-gold/80 ring-2 ring-kst-gold/30'
+          : 'hover:border-white/15'
+      )}
+      style={
+        selected
+          ? { borderColor: 'rgba(201, 168, 76, 0.8)' }
+          : undefined
+      }
+    >
+      <p
+        className={cn(
+          'text-sm font-semibold',
+          selected ? 'text-kst-gold' : 'text-kst-white'
+        )}
+      >
+        {title}
+      </p>
+      <p className="text-[11px] text-kst-muted mt-1 leading-snug">
+        {subtitle}
+      </p>
+    </button>
   )
 }

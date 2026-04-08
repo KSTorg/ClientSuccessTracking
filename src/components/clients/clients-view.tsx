@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { Plus, Search } from 'lucide-react'
 import { AddClientModal } from '@/components/AddClientModal'
 import { StatusBadge } from '@/components/clients/status-badge'
+import { ProgramBadge } from '@/components/clients/program-badge'
 import { cn, formatDate } from '@/lib/utils'
 import {
   CLIENT_STATUSES,
+  PROGRAM_LABELS,
   type ClientStatus,
   type ClientWithCsmAndStats,
   type CsmOption,
+  type Program,
 } from '@/lib/types'
 
 interface ClientsViewProps {
@@ -19,6 +22,7 @@ interface ClientsViewProps {
 }
 
 type StatusFilter = ClientStatus | 'all'
+type ProgramFilter = Program | 'all'
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -28,15 +32,23 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
   })),
 ]
 
+const PROGRAM_FILTERS: { value: ProgramFilter; label: string }[] = [
+  { value: 'all', label: 'All Programs' },
+  { value: 'educator_incubator', label: PROGRAM_LABELS.educator_incubator },
+  { value: 'accelerator', label: PROGRAM_LABELS.accelerator },
+]
+
 export function ClientsView({ clients, csms }: ClientsViewProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [programFilter, setProgramFilter] = useState<ProgramFilter>('all')
   const [modalOpen, setModalOpen] = useState(false)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return clients.filter((c) => {
       if (statusFilter !== 'all' && c.status !== statusFilter) return false
+      if (programFilter !== 'all' && c.program !== programFilter) return false
       if (!q) return true
       return (
         c.company_name.toLowerCase().includes(q) ||
@@ -44,7 +56,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
         c.contact_email.toLowerCase().includes(q)
       )
     })
-  }, [clients, search, statusFilter])
+  }, [clients, search, statusFilter, programFilter])
 
   return (
     <div className="max-w-7xl">
@@ -100,6 +112,25 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
         </div>
       </div>
 
+      {/* Program filter pills */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {PROGRAM_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            onClick={() => setProgramFilter(f.value)}
+            className={cn(
+              'px-3 h-9 rounded-full text-xs font-medium border transition-colors',
+              programFilter === f.value
+                ? 'border-kst-gold/60 text-kst-gold bg-kst-gold/10'
+                : 'border-white/10 text-kst-muted hover:text-kst-white hover:border-white/20'
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* Table */}
       {clients.length === 0 ? (
         <div className="glass-panel p-12 text-center">
@@ -127,6 +158,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                     Email
                   </th>
                   <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 font-medium">Program</th>
                   <th className="px-5 py-3 font-medium hidden lg:table-cell">
                     CSM
                   </th>
@@ -168,6 +200,14 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                       <td className="px-5 py-4">
                         <StatusBadge status={c.status} />
                       </td>
+                      <td className="px-5 py-4">
+                        <span className="md:hidden">
+                          <ProgramBadge program={c.program} short />
+                        </span>
+                        <span className="hidden md:inline">
+                          <ProgramBadge program={c.program} />
+                        </span>
+                      </td>
                       <td className="px-5 py-4 hidden lg:table-cell">
                         {c.csm?.full_name ? (
                           <span className="text-kst-white">
@@ -199,7 +239,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                 {filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-5 py-10 text-center text-kst-muted text-sm"
                     >
                       No clients match your filters.

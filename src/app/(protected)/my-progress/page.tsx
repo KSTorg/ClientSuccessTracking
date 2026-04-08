@@ -14,7 +14,7 @@ export default async function MyProgressPage() {
   // 1) Try the primary path: clients.user_id matches the signed-in user
   let { data: client } = await supabase
     .from('clients')
-    .select('id, company_name, launched_date')
+    .select('id, company_name, launched_date, program')
     .eq('user_id', data.user.id)
     .maybeSingle()
 
@@ -29,7 +29,7 @@ export default async function MyProgressPage() {
     if (contactRow?.client_id) {
       const { data: viaContact } = await supabase
         .from('clients')
-        .select('id, company_name, launched_date')
+        .select('id, company_name, launched_date, program')
         .eq('id', contactRow.client_id)
         .maybeSingle()
       if (viaContact) client = viaContact
@@ -92,6 +92,7 @@ export default async function MyProgressPage() {
         isTeamView={false}
         clientName={client.company_name}
         isLaunched={isLaunched}
+        program={client.program ?? 'educator_incubator'}
       />
     </div>
   )

@@ -20,7 +20,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
     supabase.from('clients').select('*').eq('id', id).single(),
     supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, specialty')
       .in('role', ['admin', 'csm'])
       .order('full_name'),
     supabase

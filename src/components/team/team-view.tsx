@@ -15,12 +15,15 @@ import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/supabase/invite'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
+import { SPECIALTIES, SPECIALTY_LABELS, type Specialty } from '@/lib/types'
+import { SpecialtyBadge } from '@/components/team/specialty-badge'
 
 interface TeamMember {
   id: string
   full_name: string | null
   email: string | null
   role: Role
+  specialty: Specialty | null
 }
 
 interface TeamViewProps {
@@ -96,6 +99,32 @@ export function TeamView({
         m.map((x) => (x.id === member.id ? { ...x, role: prev } : x))
       )
       alert(`Could not change role: ${error.message}`)
+      return
+    }
+    router.refresh()
+  }
+
+  async function changeSpecialty(
+    member: TeamMember,
+    nextSpecialty: Specialty | null
+  ) {
+    setSavingId(member.id)
+    const prev = member.specialty
+    setMembers((m) =>
+      m.map((x) =>
+        x.id === member.id ? { ...x, specialty: nextSpecialty } : x
+      )
+    )
+    const { error } = await supabase
+      .from('profiles')
+      .update({ specialty: nextSpecialty })
+      .eq('id', member.id)
+    setSavingId(null)
+    if (error) {
+      setMembers((m) =>
+        m.map((x) => (x.id === member.id ? { ...x, specialty: prev } : x))
+      )
+      alert(`Could not change specialty: ${error.message}`)
       return
     }
     router.refresh()
@@ -215,13 +244,19 @@ export function TeamView({
                       {member.email ?? '—'}
                     </p>
                   </div>
-                  <RoleBadge role={member.role} />
+                  <div className="flex items-center gap-1.5">
+                    <RoleBadge role={member.role} />
+                    {member.specialty && (
+                      <SpecialtyBadge specialty={member.specialty} />
+                    )}
+                  </div>
                   {isAdmin && (
                     <RowMenu
                       member={member}
                       isMe={isMe}
                       saving={savingId === member.id}
                       onChangeRole={changeRole}
+                      onChangeSpecialty={changeSpecialty}
                       onRemove={() => setConfirmRemove(member)}
                     />
                   )}
@@ -297,20 +332,24 @@ function RowMenu({
   isMe,
   saving,
   onChangeRole,
+  onChangeSpecialty,
   onRemove,
 }: {
   member: TeamMember
   isMe: boolean
   saving: boolean
   onChangeRole: (member: TeamMember, role: Role) => void
+  onChangeSpecialty: (member: TeamMember, s: Specialty | null) => void
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [showRoles, setShowRoles] = useState(false)
+  const [showSpecialties, setShowSpecialties] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useClickOutside(ref, open, () => {
     setOpen(false)
     setShowRoles(false)
+    setShowSpecialties(false)
   })
 
   return (
@@ -325,25 +364,8 @@ function RowMenu({
         <MoreVertical size={16} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 min-w-[200px] kst-dropdown p-1 kst-fade-in z-50">
-          {!showRoles ? (
-            <>
-              <MenuItem onClick={() => setShowRoles(true)}>
-                Change Role
-              </MenuItem>
-              <MenuItem
-                disabled={isMe || member.role !== 'csm'}
-                tone="danger"
-                onClick={() => {
-                  setOpen(false)
-                  onRemove()
-                }}
-              >
-                <Trash2 size={13} />
-                Remove from Team
-              </MenuItem>
-            </>
-          ) : (
+        <div className="absolute right-0 top-full mt-2 min-w-[220px] kst-dropdown p-1 kst-fade-in z-50">
+          {showRoles ? (
             <>
               {(['admin', 'csm'] as Role[]).map((r) => {
                 const active = member.role === r
@@ -366,6 +388,67 @@ function RowMenu({
                   </button>
                 )
               })}
+            </>
+          ) : showSpecialties ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false)
+                  setShowSpecialties(false)
+                  if (member.specialty !== null) onChangeSpecialty(member, null)
+                }}
+                className={cn(
+                  'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+                  member.specialty === null && 'bg-kst-gold/10 text-kst-white'
+                )}
+              >
+                <span className="text-kst-muted">None</span>
+                {member.specialty === null && (
+                  <Check size={13} className="text-kst-gold" />
+                )}
+              </button>
+              {SPECIALTIES.map((s) => {
+                const active = member.specialty === s
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      setShowSpecialties(false)
+                      if (!active) onChangeSpecialty(member, s)
+                    }}
+                    className={cn(
+                      'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+                      active && 'bg-kst-gold/10 text-kst-white'
+                    )}
+                  >
+                    <span>{SPECIALTY_LABELS[s]}</span>
+                    {active && <Check size={13} className="text-kst-gold" />}
+                  </button>
+                )
+              })}
+            </>
+          ) : (
+            <>
+              <MenuItem onClick={() => setShowRoles(true)}>
+                Change Role
+              </MenuItem>
+              <MenuItem onClick={() => setShowSpecialties(true)}>
+                Change Specialty
+              </MenuItem>
+              <MenuItem
+                disabled={isMe || member.role !== 'csm'}
+                tone="danger"
+                onClick={() => {
+                  setOpen(false)
+                  onRemove()
+                }}
+              >
+                <Trash2 size={13} />
+                Remove from Team
+              </MenuItem>
             </>
           )}
         </div>
@@ -418,6 +501,7 @@ function InviteTeamModal({
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('csm')
+  const [specialty, setSpecialty] = useState<Specialty | null>(null)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -449,6 +533,7 @@ function InviteTeamModal({
         fullName: fullName.trim(),
         role,
         password,
+        specialty,
       })
       setSuccess(true)
       setTimeout(onInvited, 1500)
@@ -510,6 +595,13 @@ function InviteTeamModal({
             </Field>
             <Field label="Role">
               <RolePicker value={role} onChange={setRole} disabled={loading} />
+            </Field>
+            <Field label="Specialty">
+              <SpecialtyPicker
+                value={specialty}
+                onChange={setSpecialty}
+                disabled={loading}
+              />
             </Field>
             <Field label="Password">
               <input
@@ -668,6 +760,76 @@ function RolePicker({
               >
                 <span className={active ? 'text-kst-white' : 'text-kst-muted'}>
                   {ROLE_LABELS[r]}
+                </span>
+                {active && <Check size={13} className="text-kst-gold" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SpecialtyPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: Specialty | null
+  onChange: (s: Specialty | null) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, open, () => setOpen(false))
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(inputClass, 'flex items-center justify-between text-left')}
+      >
+        <span className={value ? 'text-kst-white' : 'text-kst-muted'}>
+          {value ? SPECIALTY_LABELS[value] : 'None'}
+        </span>
+        <span className="text-kst-muted text-xs">▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-2 kst-dropdown p-1 kst-fade-in">
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null)
+              setOpen(false)
+            }}
+            className={cn(
+              'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+              value === null && 'bg-kst-gold/10'
+            )}
+          >
+            <span className="text-kst-muted">None</span>
+            {value === null && <Check size={13} className="text-kst-gold" />}
+          </button>
+          {SPECIALTIES.map((s) => {
+            const active = s === value
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => {
+                  onChange(s)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+                  active && 'bg-kst-gold/10'
+                )}
+              >
+                <span className={active ? 'text-kst-white' : 'text-kst-muted'}>
+                  {SPECIALTY_LABELS[s]}
                 </span>
                 {active && <Check size={13} className="text-kst-gold" />}
               </button>

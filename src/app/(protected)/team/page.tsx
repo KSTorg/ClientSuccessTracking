@@ -8,7 +8,7 @@ export default async function TeamPage() {
 
   const { data: members } = await supabase
     .from('profiles')
-    .select('id, full_name, email, role')
+    .select('id, full_name, email, role, specialty')
     .in('role', ['admin', 'csm'])
     .order('full_name')
 

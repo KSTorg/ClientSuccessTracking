@@ -1,4 +1,5 @@
 import type { Role } from '@/lib/supabase/get-user'
+import type { Specialty } from '@/lib/types'
 
 /**
  * Invite a new user via the server-side /api/invite route. The route
@@ -11,11 +12,13 @@ export async function inviteUser(params: {
   fullName: string
   role: Role
   password: string
+  specialty?: Specialty | null
 }): Promise<{ userId: string }> {
   console.log('[invite] POST /api/invite', {
     email: params.email,
     fullName: params.fullName,
     role: params.role,
+    specialty: params.specialty ?? null,
   })
 
   const res = await fetch('/api/invite', {
@@ -26,6 +29,7 @@ export async function inviteUser(params: {
       fullName: params.fullName,
       role: params.role,
       password: params.password,
+      specialty: params.specialty ?? null,
     }),
   })
 
