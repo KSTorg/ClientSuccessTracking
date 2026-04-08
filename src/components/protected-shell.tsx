@@ -27,7 +27,7 @@ function getNavItems(role: Role): NavItem[] {
   }
   return [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '#', label: 'Clients', icon: Users },
+    { href: '/clients', label: 'Clients', icon: Users },
   ]
 }
 
