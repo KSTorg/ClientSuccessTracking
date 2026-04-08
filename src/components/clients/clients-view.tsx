@@ -149,23 +149,23 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
       ) : (
         <div className="glass-panel overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
-                  <th className="px-5 py-3 font-medium">Company</th>
-                  <th className="px-5 py-3 font-medium">Contact</th>
-                  <th className="px-5 py-3 font-medium hidden md:table-cell">
+                  <th className="px-4 py-3 font-medium">Company</th>
+                  <th className="px-4 py-3 font-medium w-[140px]">Contact</th>
+                  <th className="px-4 py-3 font-medium w-[200px] hidden xl:table-cell">
                     Email
                   </th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Program</th>
-                  <th className="px-5 py-3 font-medium hidden lg:table-cell">
+                  <th className="px-4 py-3 font-medium w-[100px]">Status</th>
+                  <th className="px-4 py-3 font-medium w-[60px]">Program</th>
+                  <th className="px-4 py-3 font-medium w-[100px] hidden lg:table-cell">
                     CSM
                   </th>
-                  <th className="px-5 py-3 font-medium hidden lg:table-cell">
+                  <th className="px-4 py-3 font-medium w-[90px] hidden lg:table-cell">
                     Joined
                   </th>
-                  <th className="px-5 py-3 font-medium w-[160px]">Progress</th>
+                  <th className="px-4 py-3 font-medium w-[120px]">Progress</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,33 +182,28 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                         window.location.href = `/clients/${c.id}`
                       }}
                     >
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-4">
                         <Link
                           href={`/clients/${c.id}`}
-                          className="text-kst-white font-medium hover:text-kst-gold transition-colors"
+                          className="block text-kst-white font-medium hover:text-kst-gold transition-colors truncate"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {c.company_name}
                         </Link>
                       </td>
-                      <td className="px-5 py-4 text-kst-white">
+                      <td className="px-4 py-4 text-kst-white truncate">
                         {c.contact_name}
                       </td>
-                      <td className="px-5 py-4 text-kst-muted hidden md:table-cell">
+                      <td className="px-4 py-4 text-kst-muted truncate hidden xl:table-cell">
                         {c.contact_email}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-4">
                         <StatusBadge status={c.status} />
                       </td>
-                      <td className="px-5 py-4">
-                        <span className="md:hidden">
-                          <ProgramBadge program={c.program} short />
-                        </span>
-                        <span className="hidden md:inline">
-                          <ProgramBadge program={c.program} />
-                        </span>
+                      <td className="px-4 py-4">
+                        <ProgramBadge program={c.program} short />
                       </td>
-                      <td className="px-5 py-4 hidden lg:table-cell">
+                      <td className="px-4 py-4 truncate hidden lg:table-cell">
                         {c.csm?.full_name ? (
                           <span className="text-kst-white">
                             {c.csm.full_name}
@@ -217,10 +212,10 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                           <span className="text-kst-muted">Unassigned</span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-kst-muted hidden lg:table-cell">
+                      <td className="px-4 py-4 text-kst-muted hidden lg:table-cell whitespace-nowrap">
                         {formatDate(c.joined_date ?? c.created_at)}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                             <div
