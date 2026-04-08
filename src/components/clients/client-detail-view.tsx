@@ -174,6 +174,67 @@ export function ClientDetailView({
   async function handleDelete() {
     setDeleting(true)
     setDeleteError(null)
+
+    // 1) Collect every auth user that should be removed alongside the client:
+    //    - Every client_contacts row with has_login && user_id
+    //    - The client's own clients.user_id (the primary contact's auth user)
+    const { data: contactRows, error: contactsErr } = await supabase
+      .from('client_contacts')
+      .select('user_id, has_login')
+      .eq('client_id', client.id)
+
+    if (contactsErr) {
+      console.warn(
+        '[delete client] could not fetch contacts for cleanup:',
+        contactsErr.message
+      )
+    }
+
+    const userIds = new Set<string>()
+    if (client.user_id) userIds.add(client.user_id)
+    for (const row of (contactRows ?? []) as {
+      user_id: string | null
+      has_login: boolean
+    }[]) {
+      if (row.has_login && row.user_id) userIds.add(row.user_id)
+    }
+
+    console.log(
+      '[delete client] cleaning up auth users:',
+      Array.from(userIds)
+    )
+
+    // 2) Call /api/delete-user for each. Failures are logged but never block
+    //    the client deletion itself — an orphan auth user is recoverable, a
+    //    half-deleted client is not.
+    await Promise.all(
+      Array.from(userIds).map(async (userId) => {
+        try {
+          const res = await fetch('/api/delete-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId }),
+          })
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            console.warn(
+              `[delete client] delete-user failed for ${userId}:`,
+              body?.error ?? res.status
+            )
+          } else {
+            console.log(`[delete client] removed auth user ${userId}`)
+          }
+        } catch (err) {
+          console.warn(
+            `[delete client] delete-user threw for ${userId}:`,
+            err
+          )
+        }
+      })
+    )
+
+    // 3) Finally delete the client itself. DB cascades clean up
+    //    client_tasks and client_contacts.
     const { error } = await supabase
       .from('clients')
       .delete()

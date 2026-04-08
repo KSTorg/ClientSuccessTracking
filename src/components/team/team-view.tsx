@@ -82,6 +82,7 @@ export function TeamView({
   const [confirmRemove, setConfirmRemove] = useState<TeamMember | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
 
   async function changeRole(member: TeamMember, nextRole: Role) {
     setSavingId(member.id)
@@ -109,24 +110,61 @@ export function TeamView({
     nextSpecialty: Specialty | null
   ) {
     setSavingId(member.id)
+    setRowError(null)
     const prev = member.specialty
+
+    // Optimistic update
     setMembers((m) =>
       m.map((x) =>
         x.id === member.id ? { ...x, specialty: nextSpecialty } : x
       )
     )
-    const { error } = await supabase
+
+    console.log('[team] updating specialty', {
+      memberId: member.id,
+      from: prev,
+      to: nextSpecialty,
+    })
+
+    const response = await supabase
       .from('profiles')
       .update({ specialty: nextSpecialty })
       .eq('id', member.id)
+      .select('id, specialty')
+
+    console.log('[team] specialty update response:', response)
+
     setSavingId(null)
-    if (error) {
+
+    if (response.error) {
+      console.error('[team] specialty update error:', response.error)
       setMembers((m) =>
         m.map((x) => (x.id === member.id ? { ...x, specialty: prev } : x))
       )
-      alert(`Could not change specialty: ${error.message}`)
+      setRowError(
+        `Could not change specialty for ${
+          member.full_name ?? member.email ?? 'that member'
+        }: ${response.error.message}`
+      )
       return
     }
+
+    if (!response.data || response.data.length === 0) {
+      // RLS silently filtered the update — no row matched under the
+      // current user's permissions. Roll back so state reflects reality.
+      console.warn(
+        '[team] specialty update returned no rows (likely RLS)',
+        { memberId: member.id }
+      )
+      setMembers((m) =>
+        m.map((x) => (x.id === member.id ? { ...x, specialty: prev } : x))
+      )
+      setRowError(
+        `Could not change specialty: the update was blocked (RLS on profiles?). No rows affected.`
+      )
+      return
+    }
+
     router.refresh()
   }
 
@@ -210,6 +248,20 @@ export function TeamView({
           You have read-only access to the team list. Only admins can invite,
           change roles, or remove members.
         </p>
+      )}
+
+      {rowError && (
+        <div className="glass-panel-sm px-4 py-3 mb-4 text-sm text-kst-error flex items-start justify-between gap-3">
+          <span>{rowError}</span>
+          <button
+            type="button"
+            onClick={() => setRowError(null)}
+            aria-label="Dismiss"
+            className="text-kst-error hover:text-kst-white transition-colors text-xs shrink-0"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       <div className="glass-panel">
