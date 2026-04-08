@@ -70,5 +70,12 @@ export default async function ClientsPage() {
     }
   })
 
-  return <ClientsView clients={clientsWithStats} csms={csms} />
+  return (
+    <ClientsView
+      clients={clientsWithStats}
+      csms={csms}
+      debugCount={clientsRes.data?.length ?? 0}
+      debugError={clientsRes.error?.message ?? null}
+    />
+  )
 }

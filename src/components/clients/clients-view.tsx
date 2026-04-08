@@ -16,6 +16,8 @@ import {
 interface ClientsViewProps {
   clients: ClientWithCsmAndStats[]
   csms: CsmOption[]
+  debugCount?: number
+  debugError?: string | null
 }
 
 type StatusFilter = ClientStatus | 'all'
@@ -28,7 +30,12 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
   })),
 ]
 
-export function ClientsView({ clients, csms }: ClientsViewProps) {
+export function ClientsView({
+  clients,
+  csms,
+  debugCount,
+  debugError,
+}: ClientsViewProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [modalOpen, setModalOpen] = useState(false)
@@ -48,7 +55,16 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
 
   return (
     <div className="max-w-7xl">
-      <div className="flex items-center justify-between mb-8 gap-4">
+      {/* TEMP debug — remove once the empty-list bug is resolved */}
+      <p className="text-red-500 text-sm">
+        Raw clients received: {clients.length}
+      </p>
+      <p className="text-red-500 text-sm mb-4">
+        After filter ({statusFilter}, search=&quot;{search}&quot;):{' '}
+        {filtered.length}
+      </p>
+
+      <div className="flex items-center justify-between mb-2 gap-4">
         <h1
           className="text-5xl md:text-6xl text-kst-gold tracking-tight"
           style={{ fontFamily: 'var(--font-display)' }}
@@ -64,6 +80,12 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
           Add Client
         </button>
       </div>
+
+      {/* TEMP debug — remove once the empty-list bug is resolved */}
+      <p className="text-xs text-kst-muted mb-6 font-mono">
+        Debug: {debugCount ?? '?'} clients fetched, error:{' '}
+        {debugError ?? 'null'}
+      </p>
 
       {/* Search & filters */}
       <div className="glass-panel-sm p-4 mb-6 flex flex-col md:flex-row md:items-center gap-3">
