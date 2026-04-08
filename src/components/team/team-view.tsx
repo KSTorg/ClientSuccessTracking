@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Check,
+  MessageSquare,
   MoreVertical,
   Shield,
   ShieldCheck,
@@ -26,6 +27,7 @@ interface TeamMember {
   email: string | null
   role: Role
   specialty: Specialty | null
+  discord_id: string | null
 }
 
 interface TeamViewProps {
@@ -83,6 +85,7 @@ export function TeamView({
   const [members, setMembers] = useState(initialMembers)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState<TeamMember | null>(null)
+  const [discordEditing, setDiscordEditing] = useState<TeamMember | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<string | null>(null)
@@ -103,6 +106,35 @@ export function TeamView({
         m.map((x) => (x.id === member.id ? { ...x, role: prev } : x))
       )
       alert(`Could not change role: ${error.message}`)
+      return
+    }
+    router.refresh()
+  }
+
+  async function changeDiscordId(
+    member: TeamMember,
+    nextDiscordId: string | null
+  ) {
+    setSavingId(member.id)
+    setRowError(null)
+    const prev = member.discord_id
+    setMembers((m) =>
+      m.map((x) =>
+        x.id === member.id ? { ...x, discord_id: nextDiscordId } : x
+      )
+    )
+    const { error } = await supabase
+      .from('profiles')
+      .update({ discord_id: nextDiscordId })
+      .eq('id', member.id)
+    setSavingId(null)
+    if (error) {
+      setMembers((m) =>
+        m.map((x) =>
+          x.id === member.id ? { ...x, discord_id: prev } : x
+        )
+      )
+      setRowError(`Could not update Discord ID: ${error.message}`)
       return
     }
     router.refresh()
@@ -321,6 +353,14 @@ export function TeamView({
                     {member.specialty && (
                       <SpecialtyBadge specialty={member.specialty} />
                     )}
+                    {member.discord_id && (
+                      <span
+                        title={`Discord: ${member.discord_id}`}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-[#5865F2]/50 bg-[#5865F2]/10 text-[#8A95F5]"
+                      >
+                        <MessageSquare size={10} />
+                      </span>
+                    )}
                   </div>
                   {isAdmin && (
                     <RowMenu
@@ -329,6 +369,7 @@ export function TeamView({
                       saving={savingId === member.id}
                       onChangeRole={changeRole}
                       onChangeSpecialty={changeSpecialty}
+                      onSetDiscordId={() => setDiscordEditing(member)}
                       onRemove={() => setConfirmRemove(member)}
                     />
                   )}
@@ -359,6 +400,17 @@ export function TeamView({
             setRemoveError(null)
           }}
           onConfirm={() => removeMember(confirmRemove)}
+        />
+      )}
+
+      {discordEditing && (
+        <DiscordIdModal
+          member={discordEditing}
+          onCancel={() => setDiscordEditing(null)}
+          onSave={async (value) => {
+            await changeDiscordId(discordEditing, value || null)
+            setDiscordEditing(null)
+          }}
         />
       )}
     </div>
@@ -406,6 +458,7 @@ function RowMenu({
   saving,
   onChangeRole,
   onChangeSpecialty,
+  onSetDiscordId,
   onRemove,
 }: {
   member: TeamMember
@@ -413,6 +466,7 @@ function RowMenu({
   saving: boolean
   onChangeRole: (member: TeamMember, role: Role) => void
   onChangeSpecialty: (member: TeamMember, s: Specialty | null) => void
+  onSetDiscordId: () => void
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -512,6 +566,15 @@ function RowMenu({
                 Change Specialty
               </MenuItem>
               <MenuItem
+                onClick={() => {
+                  setOpen(false)
+                  onSetDiscordId()
+                }}
+              >
+                <MessageSquare size={13} />
+                Set Discord ID
+              </MenuItem>
+              <MenuItem
                 disabled={isMe || member.role !== 'csm'}
                 tone="danger"
                 onClick={() => {
@@ -576,6 +639,7 @@ function InviteTeamModal({
   const [role, setRole] = useState<Role>('csm')
   const [specialty, setSpecialty] = useState<Specialty | null>(null)
   const [password, setPassword] = useState('')
+  const [discordId, setDiscordId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -607,6 +671,7 @@ function InviteTeamModal({
         role,
         password,
         specialty,
+        discordId: discordId.trim() || null,
       })
       setSuccess(true)
       setTimeout(onInvited, 1500)
@@ -689,6 +754,19 @@ function InviteTeamModal({
               />
               <span className="text-[11px] text-kst-muted mt-1">
                 You&apos;ll share this with them directly — no email is sent.
+              </span>
+            </Field>
+            <Field label="Discord ID (optional)">
+              <input
+                type="text"
+                value={discordId}
+                onChange={(e) => setDiscordId(e.target.value)}
+                placeholder="e.g. 123456789012345678"
+                disabled={loading}
+                className={inputClass}
+              />
+              <span className="text-[11px] text-kst-muted mt-1">
+                Numeric Discord user ID — used for notifications.
               </span>
             </Field>
 
@@ -788,6 +866,106 @@ function ConfirmRemoveModal({
             Remove
           </button>
         </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DiscordIdModal({
+  member,
+  onCancel,
+  onSave,
+}: {
+  member: TeamMember
+  onCancel: () => void
+  onSave: (value: string) => Promise<void> | void
+}) {
+  const [value, setValue] = useState(member.discord_id ?? '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setSaving(true)
+    await onSave(value.trim())
+    setSaving(false)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+    >
+      <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
+        <div
+          className="glass-panel relative w-full max-w-[440px] p-7 kst-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-2 text-kst-muted hover:text-kst-white transition-colors"
+          >
+            <X size={18} />
+          </button>
+          <h2 className="text-kst-white text-xl font-semibold mb-1">
+            Set Discord ID
+          </h2>
+          <p className="text-kst-muted text-sm mb-5">
+            Numeric Discord user ID for{' '}
+            <span className="text-kst-white">
+              {member.full_name ?? member.email ?? 'this member'}
+            </span>
+            . Used for @ mentions in notifications.
+          </p>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <Field label="Discord User ID">
+              <input
+                type="text"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                autoFocus
+                placeholder="e.g. 123456789012345678"
+                className={inputClass}
+              />
+              <span className="text-[11px] text-kst-muted mt-1">
+                Find this in Discord → User Settings → Advanced → Developer
+                Mode, then right-click the user and pick &quot;Copy User
+                ID&quot;.
+              </span>
+            </Field>
+
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={saving}
+                className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
+              >
+                <MessageSquare size={14} />
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

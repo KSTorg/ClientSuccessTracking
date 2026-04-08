@@ -10,6 +10,7 @@ export interface Profile {
   role: Role
   email?: string | null
   specialty?: 'csm' | 'ads' | 'systems' | 'organic' | 'sales' | null
+  discord_id?: string | null
 }
 
 export interface UserWithProfile {

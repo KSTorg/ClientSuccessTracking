@@ -8,6 +8,7 @@ interface InviteBody {
   role?: 'admin' | 'csm' | 'client'
   password?: string
   specialty?: 'csm' | 'ads' | 'systems' | 'organic' | 'sales' | null
+  discordId?: string | null
 }
 
 export async function POST(request: NextRequest) {
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     ['csm', 'ads', 'systems', 'organic', 'sales'].includes(body.specialty)
       ? body.specialty
       : null
+  const discordId = body.discordId?.trim() || null
 
   if (!email || !fullName || !role || !password) {
     return NextResponse.json(
@@ -140,6 +142,7 @@ export async function POST(request: NextRequest) {
         email,
         role,
         specialty: role === 'client' ? null : specialty,
+        discord_id: role === 'client' ? null : discordId,
       },
       { onConflict: 'id' }
     )

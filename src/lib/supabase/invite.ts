@@ -13,6 +13,7 @@ export async function inviteUser(params: {
   role: Role
   password: string
   specialty?: Specialty | null
+  discordId?: string | null
 }): Promise<{ userId: string }> {
   console.log('[invite] POST /api/invite', {
     email: params.email,
@@ -30,6 +31,7 @@ export async function inviteUser(params: {
       role: params.role,
       password: params.password,
       specialty: params.specialty ?? null,
+      discordId: params.discordId ?? null,
     }),
   })
 

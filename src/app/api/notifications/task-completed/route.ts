@@ -1,0 +1,109 @@
+import { NextResponse, type NextRequest } from 'next/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+import { sendDiscordMessage } from '@/lib/discord'
+import {
+  getClientBlockers,
+  formatShortDate,
+} from '@/lib/overdue'
+
+interface Body {
+  clientId?: string
+  taskTitle?: string
+  completedByName?: string
+}
+
+export async function POST(request: NextRequest) {
+  // Must be a signed-in user
+  const supabase = await createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: Body
+  try {
+    body = (await request.json()) as Body
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const clientId = body.clientId?.trim()
+  const taskTitle = body.taskTitle?.trim() ?? 'Task'
+  let completedByName = body.completedByName?.trim() ?? ''
+
+  if (!clientId) {
+    return NextResponse.json({ error: 'clientId is required' }, { status: 400 })
+  }
+
+  // Fall back to the caller's profile full_name when not supplied
+  if (!completedByName) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    completedByName =
+      (profile as { full_name: string | null } | null)?.full_name ?? 'Someone'
+  }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    return NextResponse.json({ success: false }, { status: 200 })
+  }
+  const supabaseAdmin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceKey,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+
+  try {
+    // Look up client for the display name
+    const { data: clientRow } = await supabaseAdmin
+      .from('clients')
+      .select('company_name')
+      .eq('id', clientId)
+      .maybeSingle()
+    const companyName =
+      (clientRow as { company_name: string | null } | null)?.company_name ??
+      'Client'
+
+    // Compute current blockers for just this client
+    const { blockers } = await getClientBlockers(supabaseAdmin, { clientId })
+    const clientState = blockers.find((b) => b.clientId === clientId)
+
+    if (!clientState || clientState.blockers.length === 0) {
+      // No remaining overdue tasks — all caught up
+      await sendDiscordMessage(
+        `🎉 **${companyName}** — All caught up! No overdue tasks.\nCompleted by: ${completedByName}`
+      )
+      return NextResponse.json({ success: true, state: 'all_caught_up' })
+    }
+
+    // There is still at least one blocker. Report the new first blocker.
+    const next = clientState.blockers[0]!
+    const mention = next.assignedTo
+      ? next.discordId
+        ? `<@${next.discordId}>`
+        : next.assignedName ?? 'Unassigned'
+      : next.csmDiscordId
+        ? `<@${next.csmDiscordId}> (CSM)`
+        : 'Client task'
+
+    const msg =
+      `✅ **${companyName}** — "${taskTitle}" completed by ${completedByName}\n` +
+      `⏭️ Next up: "${next.taskTitle}" — Due ${formatShortDate(next.dueDate)}\n` +
+      `→ ${mention}`
+
+    await sendDiscordMessage(msg)
+    return NextResponse.json({ success: true, state: 'next_up' })
+  } catch (err) {
+    console.error('[task-completed] unhandled error:', err)
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : 'Unknown' },
+      { status: 200 }
+    )
+  }
+}

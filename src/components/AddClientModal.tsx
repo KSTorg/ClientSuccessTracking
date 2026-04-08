@@ -201,6 +201,13 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       console.warn('[add client] auto-assign threw:', err)
     }
 
+    // Fire-and-forget Discord notification
+    fetch('/api/notifications/client-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'new_client', clientId }),
+    }).catch(() => {})
+
     setLoading(false)
     toast.success(`${companyName.trim()} added successfully`)
     onClose()

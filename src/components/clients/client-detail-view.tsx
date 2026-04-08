@@ -97,12 +97,18 @@ export function ClientDetailView({
       setStatus(date ? 'launched' : 'onboarding')
       if (date) {
         toast.success(`${client.company_name} launched!`)
+        // Fire-and-forget Discord notification
+        fetch('/api/notifications/client-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'launched', clientId: client.id }),
+        }).catch(() => {})
       } else {
         toast.info(`${client.company_name} moved back to onboarding`)
       }
       router.refresh()
     },
-    [router, toast, client.company_name]
+    [router, toast, client.company_name, client.id]
   )
 
   const handleStage12Progress = useCallback(

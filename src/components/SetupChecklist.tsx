@@ -462,6 +462,19 @@ export function SetupChecklist({
           }
         })
 
+      // Fire-and-forget Discord notification on completion
+      if (next === 'completed' && target.task?.title) {
+        fetch('/api/notifications/task-completed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId,
+            taskTitle: target.task.title,
+            completedByName: '',
+          }),
+        }).catch(() => {})
+      }
+
       // Launch gate
       if (isLaunchTask) {
         if (next === 'completed' && !isLaunched) {
