@@ -143,9 +143,9 @@ export function ClientTeamSection({
   }
 
   return (
-    <div className="glass-panel p-6 mb-6">
+    <div className="glass-panel p-5 md:p-6 mb-6">
       <h3 className="text-kst-white font-semibold mb-4">Client Team</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {SLOTS.map((s) => (
           <TeamSlotPicker
             key={s.key}
@@ -193,30 +193,47 @@ export function TeamSlotPicker({
 
   return (
     <div ref={ref} className="relative">
-      <p className="text-[11px] uppercase tracking-wider text-kst-gold/80 mb-2">
+      <p
+        className={cn(
+          'text-[11px] uppercase tracking-wider mb-2 transition-colors',
+          assigned ? 'text-kst-gold' : 'text-kst-muted'
+        )}
+      >
         {label}
       </p>
       <button
         type="button"
         disabled={saving}
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-3 h-11 rounded-xl glass-panel-sm hover:bg-white/[0.04] transition-colors disabled:opacity-60"
+        className={cn(
+          'w-full flex items-center gap-3 px-3 h-14 rounded-xl glass-panel-sm glass-panel-interactive disabled:opacity-60 text-left'
+        )}
+        style={
+          assigned
+            ? { borderColor: 'rgba(201, 168, 76, 0.35)' }
+            : undefined
+        }
         aria-haspopup="menu"
         aria-expanded={open}
       >
         {assigned ? (
           <>
-            <div className="w-8 h-8 rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center text-[10px] font-semibold bg-white/[0.02] shrink-0">
+            <div className="w-9 h-9 rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center text-[11px] font-semibold bg-kst-gold/5 shrink-0">
               {initialsOf(assigned.full_name)}
             </div>
-            <span className="text-kst-white text-sm truncate flex-1 text-left">
+            <span className="text-kst-white text-sm truncate flex-1">
               {assigned.full_name ?? 'Unnamed'}
             </span>
           </>
         ) : (
-          <span className="text-kst-muted text-sm italic flex-1 text-left">
-            Unassigned
-          </span>
+          <>
+            <div className="w-9 h-9 rounded-full border border-dashed border-white/15 flex items-center justify-center shrink-0">
+              <span className="text-kst-muted text-sm">+</span>
+            </div>
+            <span className="text-kst-muted text-sm italic flex-1">
+              Unassigned
+            </span>
+          </>
         )}
       </button>
       {open && (

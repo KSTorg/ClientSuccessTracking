@@ -15,9 +15,22 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "KST Tracker",
-  description: "Client Success Tracking",
-};
+  title: {
+    default: 'KST Tracker — Client Success Tracking',
+    template: '%s · KST Tracker',
+  },
+  description: 'Premium client success tracking for KST Marketing.',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+  },
+  openGraph: {
+    title: 'KST Tracker',
+    description: 'Client Success Tracking by KST Marketing',
+    type: 'website',
+  },
+}
 
 export default function RootLayout({
   children,

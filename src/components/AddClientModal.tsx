@@ -9,6 +9,7 @@ import {
   TeamSlotPicker,
   buildDefaultClientTeam,
 } from '@/components/clients/client-team-section'
+import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import {
   EMPTY_CLIENT_TEAM,
@@ -36,6 +37,7 @@ const inputClass =
 export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   const router = useRouter()
   const supabase = createClient()
+  const toast = useToast()
 
   const today = new Date().toISOString().slice(0, 10)
   const [program, setProgram] = useState<Program>('educator_incubator')
@@ -200,6 +202,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
     }
 
     setLoading(false)
+    toast.success(`${companyName.trim()} added successfully`)
     onClose()
     router.refresh()
   }
@@ -457,10 +460,11 @@ function ProgramCard({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'glass-panel-sm text-left p-4 transition-all disabled:opacity-60',
+        'glass-panel-sm text-left p-4 disabled:opacity-60',
+        'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
         selected
-          ? 'border-kst-gold/80 ring-2 ring-kst-gold/30'
-          : 'hover:border-white/15'
+          ? 'border-kst-gold/80 ring-2 ring-kst-gold/30 scale-[1.015] gold-glow'
+          : 'hover:border-white/15 hover:-translate-y-[1px]'
       )}
       style={
         selected
@@ -470,7 +474,7 @@ function ProgramCard({
     >
       <p
         className={cn(
-          'text-sm font-semibold',
+          'text-sm font-semibold transition-colors',
           selected ? 'text-kst-gold' : 'text-kst-white'
         )}
       >

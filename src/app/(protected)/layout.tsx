@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getUserWithProfile } from '@/lib/supabase/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { ProtectedShell } from '@/components/protected-shell'
+import { ToastProvider } from '@/components/ui/toast'
 
 export default async function ProtectedLayout({
   children,
@@ -21,12 +22,14 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <ProtectedShell
-      fullName={data.profile.full_name ?? ''}
-      email={data.user.email ?? ''}
-      role={data.profile.role}
-    >
-      {children}
-    </ProtectedShell>
+    <ToastProvider>
+      <ProtectedShell
+        fullName={data.profile.full_name ?? ''}
+        email={data.user.email ?? ''}
+        role={data.profile.role}
+      >
+        {children}
+      </ProtectedShell>
+    </ToastProvider>
   )
 }

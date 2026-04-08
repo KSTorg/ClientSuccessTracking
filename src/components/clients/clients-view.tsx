@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Users } from 'lucide-react'
 import { AddClientModal } from '@/components/AddClientModal'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { ProgramBadge } from '@/components/clients/program-badge'
@@ -133,14 +133,21 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
 
       {/* Table */}
       {clients.length === 0 ? (
-        <div className="glass-panel p-12 text-center">
-          <p className="text-kst-muted text-sm mb-6">
-            No clients yet. Add your first client to get started.
+        <div className="glass-panel p-12 md:p-16 text-center flex flex-col items-center">
+          <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center mb-5">
+            <Users size={28} className="text-kst-muted" />
+          </div>
+          <p className="text-kst-white text-lg font-semibold">
+            No clients yet
+          </p>
+          <p className="text-kst-muted text-sm mt-1 mb-6 max-w-xs">
+            Add your first client to get started. They&apos;ll receive a
+            login to track their onboarding progress.
           </p>
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm"
+            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm shadow-[0_8px_32px_rgba(201,168,76,0.25)]"
           >
             <Plus size={16} />
             Add Client

@@ -94,10 +94,10 @@ export function ProtectedShell({
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="hidden sm:inline text-kst-muted text-sm">
+          <span className="hidden md:inline text-kst-muted text-sm truncate max-w-[160px]">
             {displayName}
           </span>
-          <div className="w-9 h-9 rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center text-xs font-semibold bg-white/[0.02]">
+          <div className="w-9 h-9 rounded-full border border-kst-gold/60 text-kst-gold flex items-center justify-center text-xs font-semibold bg-white/[0.02] shrink-0">
             {initials}
           </div>
         </div>
@@ -158,14 +158,16 @@ export function ProtectedShell({
           bar and sidebar never drift. The left margin only kicks in
           at md+ because the mobile sidebar is an overlay, not inline. */}
       <main
-        className="p-6 md:p-8 md:ml-[260px]"
+        className="p-4 md:p-8 md:ml-[260px]"
         style={{
           marginTop: 64,
           height: 'calc(100vh - 64px)',
           overflowY: 'auto',
         }}
       >
-        {children}
+        <div key={pathname} className="kst-page-enter">
+          {children}
+        </div>
       </main>
     </div>
   )

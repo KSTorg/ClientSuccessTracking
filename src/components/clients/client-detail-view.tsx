@@ -16,6 +16,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { SuccessTracking } from '@/components/SuccessTracking'
+import { useToast } from '@/components/ui/toast'
 import {
   ContactsSection,
   type ClientContact,
@@ -69,6 +70,7 @@ export function ClientDetailView({
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
+  const toast = useToast()
 
   const [status, setStatus] = useState<ClientStatus>(client.status)
   const [launchedDate, setLaunchedDate] = useState<string | null>(
@@ -93,9 +95,14 @@ export function ClientDetailView({
     (date: string | null) => {
       setLaunchedDate(date)
       setStatus(date ? 'launched' : 'onboarding')
+      if (date) {
+        toast.success(`${client.company_name} launched!`)
+      } else {
+        toast.info(`${client.company_name} moved back to onboarding`)
+      }
       router.refresh()
     },
-    [router]
+    [router, toast, client.company_name]
   )
 
   const handleStage12Progress = useCallback(
@@ -150,8 +157,9 @@ export function ClientDetailView({
     setSavingField(null)
     if (error) {
       setStatus(prev)
-      alert(`Could not update status: ${error.message}`)
+      toast.error(`Could not update status: ${error.message}`)
     } else {
+      toast.success('Status updated')
       router.refresh()
     }
   }
@@ -165,10 +173,11 @@ export function ClientDetailView({
       .eq('id', client.id)
     setSavingNotes(false)
     if (error) {
-      alert(`Could not save notes: ${error.message}`)
+      toast.error(`Could not save notes: ${error.message}`)
       return
     }
     setNotesSaved(true)
+    toast.success('Notes saved')
     setTimeout(() => setNotesSaved(false), 2000)
     router.refresh()
   }
@@ -246,6 +255,7 @@ export function ClientDetailView({
       setDeleteError(error.message)
       return
     }
+    toast.success(`${client.company_name} deleted`)
     router.replace('/clients')
     router.refresh()
   }

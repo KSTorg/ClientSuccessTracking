@@ -897,7 +897,7 @@ function TopLevelTask({
     <div>
       <div
         className={cn(
-          'group grid items-start gap-x-3 gap-y-2 md:gap-y-0 px-3 py-3 rounded-lg hover:bg-white/[0.03] transition-colors',
+          'group grid items-start gap-x-3 gap-y-2 md:gap-y-0 px-2 md:px-3 py-3 rounded-lg hover:bg-white/[0.03] transition-colors',
           'grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_70px_160px_160px]',
           hasSubs && 'cursor-pointer'
         )}
@@ -1451,16 +1451,18 @@ function DueDateBadge({
     future: 'border-white/10 text-kst-muted',
     tomorrow: 'border-kst-gold/60 text-kst-gold bg-kst-gold/10',
     today:
-      'border-kst-gold/80 text-kst-gold bg-kst-gold/15 font-semibold shadow-[0_0_10px_rgba(201,168,76,0.25)]',
+      'border-kst-gold/80 text-kst-gold bg-kst-gold/15 font-semibold kst-pulse-gold',
     overdue: '',
   }
 
+  // Softer, muted red for overdue rather than alarm-bright red
   const overdueStyle =
     state === 'overdue'
       ? {
-          color: '#F87171',
-          borderColor: 'rgba(248, 113, 113, 0.55)',
-          background: 'rgba(248, 113, 113, 0.10)',
+          color: 'rgba(248, 113, 113, 0.85)',
+          borderColor: 'rgba(248, 113, 113, 0.3)',
+          background: 'rgba(248, 113, 113, 0.06)',
+          fontSize: compact ? '9px' : '10px',
         }
       : undefined
 

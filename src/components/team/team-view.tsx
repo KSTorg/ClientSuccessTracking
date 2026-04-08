@@ -9,10 +9,12 @@ import {
   ShieldCheck,
   Trash2,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/supabase/invite'
+import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
 import { SPECIALTIES, SPECIALTY_LABELS, type Specialty } from '@/lib/types'
@@ -75,6 +77,7 @@ export function TeamView({
 }: TeamViewProps) {
   const router = useRouter()
   const supabase = createClient()
+  const toast = useToast()
   const isAdmin = currentUserRole === 'admin'
 
   const [members, setMembers] = useState(initialMembers)
@@ -266,10 +269,27 @@ export function TeamView({
 
       <div className="glass-panel">
         {members.length === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-kst-muted text-sm">
-              No team members yet. Add your first one to get started.
+          <div className="p-12 md:p-16 text-center flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center mb-5">
+              <Users size={28} className="text-kst-muted" />
+            </div>
+            <p className="text-kst-white text-lg font-semibold">
+              Your team is empty
             </p>
+            <p className="text-kst-muted text-sm mt-1 mb-6 max-w-xs">
+              Invite your first team member to start assigning clients and
+              tasks.
+            </p>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setInviteOpen(true)}
+                className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm shadow-[0_8px_32px_rgba(201,168,76,0.25)]"
+              >
+                <UserPlus size={16} />
+                Invite Team Member
+              </button>
+            )}
           </div>
         ) : (
           <ul className="divide-y divide-white/[0.06]">
@@ -324,6 +344,7 @@ export function TeamView({
           onClose={() => setInviteOpen(false)}
           onInvited={() => {
             setInviteOpen(false)
+            toast.success('Team member added')
             router.refresh()
           }}
         />
