@@ -55,7 +55,10 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   // matching specialty.
   useEffect(() => {
     if (open) {
-      setClientTeam(buildDefaultClientTeam(csms))
+      console.log('[add client] csms prop on open:', csms)
+      const autoFilled = buildDefaultClientTeam(csms)
+      console.log('[add client] auto-fill result:', autoFilled)
+      setClientTeam(autoFilled)
     } else {
       setProgram('educator_incubator')
       setCompanyName('')

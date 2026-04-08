@@ -20,7 +20,7 @@ export default async function ClientsPage() {
     supabase.from('client_tasks').select('client_id, status'),
     supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, specialty')
       .in('role', ['admin', 'csm'])
       .order('full_name'),
   ])
