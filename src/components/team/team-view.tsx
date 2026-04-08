@@ -171,7 +171,7 @@ export function TeamView({
             className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm"
           >
             <UserPlus size={16} />
-            Invite Team Member
+            Add Team Member
           </button>
         )}
       </div>
@@ -479,7 +479,7 @@ function InviteTeamModal({
           <X size={18} />
         </button>
         <h2 className="text-kst-white text-xl font-semibold mb-6">
-          Invite Team Member
+          Add Team Member
         </h2>
 
         {success ? (
@@ -543,7 +543,7 @@ function InviteTeamModal({
                 className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
               >
                 <UserPlus size={14} />
-                {loading ? 'Sending...' : 'Send Invite'}
+                {loading ? 'Adding...' : 'Add User'}
               </button>
             </div>
           </form>

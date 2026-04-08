@@ -119,5 +119,43 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // ── 5) Explicitly upsert the profile row ──
+  // Don't rely on any trigger — the invite route guarantees the profile
+  // exists with the exact role/name/email the admin chose. Using the admin
+  // client so RLS never interferes. This is done for every role, including
+  // client contacts, so the same code path covers both team and contact
+  // invite flows.
+  const { error: profileUpsertErr } = await supabaseAdmin
+    .from('profiles')
+    .upsert(
+      {
+        id: created.user.id,
+        full_name: fullName,
+        email,
+        role,
+      },
+      { onConflict: 'id' }
+    )
+
+  if (profileUpsertErr) {
+    console.error('[api/invite] profile upsert error:', profileUpsertErr)
+    // Roll back the auth user so the caller can retry with the same email
+    // instead of ending up with an orphan auth record they can't re-invite.
+    try {
+      await supabaseAdmin.auth.admin.deleteUser(created.user.id)
+    } catch (rollbackErr) {
+      console.error(
+        '[api/invite] rollback deleteUser also failed:',
+        rollbackErr
+      )
+    }
+    return NextResponse.json(
+      {
+        error: `Auth user created but profile insert failed: ${profileUpsertErr.message}. Rolled back.`,
+      },
+      { status: 500 }
+    )
+  }
+
   return NextResponse.json({ userId: created.user.id })
 }
