@@ -1,0 +1,548 @@
+import Link from 'next/link'
+import {
+  AlertTriangle,
+  BarChart3,
+  Rocket,
+  Users,
+  Zap,
+} from 'lucide-react'
+import {
+  formatCurrency,
+  formatCurrencyCompact,
+  formatNumber,
+  formatPercent,
+  formatRoas,
+} from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { ProgramBadge } from '@/components/clients/program-badge'
+import { SpecialtyBadge } from '@/components/team/specialty-badge'
+import {
+  WeeklyTrendChart,
+  type WeeklyTrendPoint,
+} from '@/components/dashboard/weekly-trend-chart'
+import type { Program, Specialty } from '@/lib/types'
+
+// ───────────────────────────────────────────────────────────────────────────
+// Types (columns are best-effort; Supabase returns whatever the view has)
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface GlobalTotals {
+  total_revenue: number | null
+  total_ad_spend: number | null
+  global_roas: number | null
+  global_cpl: number | null
+  total_leads: number | null
+  total_students_enrolled: number | null
+}
+
+export interface ClientMetricsRow {
+  client_id: string | null
+  company_name: string | null
+  total_weeks_reported: number | null
+  total_ad_spend: number | null
+  total_revenue: number | null
+  overall_roas: number | null
+  overall_cpl: number | null
+  total_leads: number | null
+  total_enrolled: number | null
+  close_rate: number | null
+}
+
+export interface TaskPerformanceRow {
+  task_title: string | null
+  stage_name: string | null
+  times_overdue: number | null
+  overdue_rate_pct: number | null
+  avg_days_to_complete: number | null
+}
+
+export interface TeamPerformanceRow {
+  user_id: string | null
+  full_name: string | null
+  specialty: Specialty | null
+  total_assigned_tasks: number | null
+  completed_tasks: number | null
+  overdue_tasks: number | null
+  avg_days_to_complete: number | null
+}
+
+export interface ClientTimeToLaunchRow {
+  company_name: string | null
+  days_to_launch: number | null
+  program: Program | null
+}
+
+interface AnalyticsSectionProps {
+  globalTotals: GlobalTotals | null
+  weeklyTrend: WeeklyTrendPoint[]
+  clientMetrics: ClientMetricsRow[]
+  taskBottlenecks: TaskPerformanceRow[]
+  teamPerformance: TeamPerformanceRow[]
+  timeToLaunch: ClientTimeToLaunchRow[]
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Section
+// ───────────────────────────────────────────────────────────────────────────
+
+export function AnalyticsSection({
+  globalTotals,
+  weeklyTrend,
+  clientMetrics,
+  taskBottlenecks,
+  teamPerformance,
+  timeToLaunch,
+}: AnalyticsSectionProps) {
+  const hasAnyData =
+    !!globalTotals ||
+    weeklyTrend.length > 0 ||
+    clientMetrics.length > 0 ||
+    taskBottlenecks.length > 0 ||
+    teamPerformance.length > 0 ||
+    timeToLaunch.length > 0
+
+  return (
+    <section className="mt-12">
+      <div className="mb-6">
+        <h2 className="text-2xl md:text-3xl text-kst-white font-semibold flex items-center gap-2">
+          <BarChart3 size={20} className="text-kst-gold" />
+          Analytics
+        </h2>
+        <p className="text-kst-muted text-sm mt-1">
+          {hasAnyData
+            ? 'Live performance across every launched client.'
+            : 'Analytics will populate as you fill in weekly reports.'}
+        </p>
+      </div>
+
+      {/* A) Global metrics */}
+      <GlobalMetricsBar totals={globalTotals} />
+
+      {/* B) Weekly trend chart */}
+      <div className="mt-6">
+        <WeeklyTrendChart data={weeklyTrend} />
+      </div>
+
+      {/* C) Client performance table */}
+      <div className="mt-6">
+        <ClientPerformanceTable rows={clientMetrics} />
+      </div>
+
+      {/* D + E) Two-column grid: bottlenecks + team performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <TaskBottlenecks rows={taskBottlenecks} />
+        <TeamPerformancePanel rows={teamPerformance} />
+      </div>
+
+      {/* F) Time to launch */}
+      <div className="mt-6">
+        <TimeToLaunchPanel rows={timeToLaunch} />
+      </div>
+    </section>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// A) Global metrics bar
+// ───────────────────────────────────────────────────────────────────────────
+
+function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
+  const items: {
+    label: string
+    value: string
+    accent?: boolean
+    icon: React.ReactNode
+  }[] = [
+    {
+      label: 'Total Revenue',
+      value: formatCurrency(totals?.total_revenue),
+      accent: true,
+      icon: <Zap size={16} />,
+    },
+    {
+      label: 'Total Ad Spend',
+      value: formatCurrency(totals?.total_ad_spend),
+      icon: <BarChart3 size={16} />,
+    },
+    {
+      label: 'Global ROAS',
+      value: formatRoas(totals?.global_roas),
+      accent: true,
+      icon: <Rocket size={16} />,
+    },
+    {
+      label: 'Global CPL',
+      value: formatCurrency(totals?.global_cpl),
+      icon: <BarChart3 size={16} />,
+    },
+    {
+      label: 'Total Leads',
+      value: formatNumber(totals?.total_leads),
+      icon: <Users size={16} />,
+    },
+    {
+      label: 'Students Enrolled',
+      value: formatNumber(totals?.total_students_enrolled),
+      icon: <Users size={16} />,
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+      {items.map((item) => (
+        <div key={item.label} className="glass-panel-sm p-4 md:p-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-kst-gold/80">{item.icon}</span>
+          </div>
+          <p
+            className={cn(
+              'text-2xl md:text-3xl font-bold tracking-tight',
+              item.accent ? 'text-kst-gold' : 'text-kst-white'
+            )}
+          >
+            {item.value}
+          </p>
+          <p className="text-kst-muted text-[11px] uppercase tracking-wider mt-1">
+            {item.label}
+          </p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// C) Client performance table
+// ───────────────────────────────────────────────────────────────────────────
+
+function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
+  return (
+    <div className="glass-panel overflow-hidden">
+      <div className="flex items-center justify-between px-6 md:px-8 py-5">
+        <div>
+          <h3 className="text-kst-white font-semibold">Client Performance</h3>
+          <p className="text-kst-muted text-xs mt-0.5">
+            Sorted by ROAS, descending
+          </p>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-kst-muted text-sm px-6 md:px-8 pb-8">
+          No client weekly reports yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-sm"
+            style={{ tableLayout: 'fixed' }}
+          >
+            <colgroup>
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '8%' }} />
+            </colgroup>
+            <thead>
+              <tr className="text-left text-kst-muted text-[11px] uppercase tracking-wider border-t border-white/[0.06]">
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Client</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Weeks</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Ad Spend</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Revenue</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">ROAS</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">CPL</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Leads</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Enrolled</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Close %</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const roas = r.overall_roas
+                const roasCls =
+                  roas == null
+                    ? 'text-kst-muted'
+                    : roas >= 5
+                      ? 'text-kst-success font-semibold'
+                      : roas >= 3
+                        ? 'text-kst-gold font-semibold'
+                        : roas < 1
+                          ? 'text-kst-error font-semibold'
+                          : 'text-kst-white'
+
+                return (
+                  <tr
+                    key={r.client_id ?? i}
+                    className="border-t border-white/[0.04] hover:bg-white/[0.03] transition-colors"
+                  >
+                    <td className="px-3 py-4">
+                      <div className="truncate font-medium">
+                        {r.client_id ? (
+                          <Link
+                            href={`/clients/${r.client_id}`}
+                            className="text-kst-white hover:text-kst-gold transition-colors"
+                          >
+                            {r.company_name ?? '—'}
+                          </Link>
+                        ) : (
+                          <span className="text-kst-white">
+                            {r.company_name ?? '—'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-muted">
+                        {formatNumber(r.total_weeks_reported)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatCurrencyCompact(r.total_ad_spend)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatCurrencyCompact(r.total_revenue)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className={cn('truncate', roasCls)}>
+                        {formatRoas(roas)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatCurrencyCompact(r.overall_cpl)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatNumber(r.total_leads)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatNumber(r.total_enrolled)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-muted">
+                        {formatPercent(r.close_rate)}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// D) Task bottlenecks
+// ───────────────────────────────────────────────────────────────────────────
+
+function TaskBottlenecks({ rows }: { rows: TaskPerformanceRow[] }) {
+  return (
+    <div className="glass-panel p-6 md:p-8">
+      <div className="flex items-center gap-2 mb-5">
+        <AlertTriangle size={16} className="text-kst-error" />
+        <h3 className="text-kst-white font-semibold">
+          Most Frequently Overdue Tasks
+        </h3>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-kst-muted text-sm py-6 text-center">
+          No overdue tasks yet — everything is on schedule.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-4">
+          {rows.map((r, i) => {
+            const pct = Math.min(100, Math.max(0, Number(r.overdue_rate_pct ?? 0)))
+            return (
+              <li key={i}>
+                <div className="flex items-start justify-between gap-3 mb-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-kst-white text-sm truncate">
+                      {r.task_title ?? 'Untitled task'}
+                    </p>
+                    <p className="text-kst-muted text-xs truncate">
+                      {r.stage_name ?? '—'}
+                      {r.avg_days_to_complete != null &&
+                        ` · avg ${Number(r.avg_days_to_complete).toFixed(1)}d`}
+                    </p>
+                  </div>
+                  <span className="text-kst-error text-xs font-semibold shrink-0">
+                    {formatPercent(r.overdue_rate_pct)}
+                  </span>
+                </div>
+                <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${pct}%`,
+                      background:
+                        'linear-gradient(90deg, rgba(248,113,113,0.7), rgba(248,113,113,0.35))',
+                    }}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// E) Team performance
+// ───────────────────────────────────────────────────────────────────────────
+
+function TeamPerformancePanel({ rows }: { rows: TeamPerformanceRow[] }) {
+  return (
+    <div className="glass-panel p-6 md:p-8">
+      <div className="flex items-center gap-2 mb-5">
+        <Users size={16} className="text-kst-gold" />
+        <h3 className="text-kst-white font-semibold">Team Performance</h3>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-kst-muted text-sm py-6 text-center">
+          No team assignments yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-5">
+          {rows.map((r) => {
+            const assigned = Number(r.total_assigned_tasks ?? 0)
+            const completed = Number(r.completed_tasks ?? 0)
+            const overdue = Number(r.overdue_tasks ?? 0)
+            const completionPct =
+              assigned > 0 ? Math.round((completed / assigned) * 100) : 0
+
+            return (
+              <li key={r.user_id ?? r.full_name ?? Math.random()}>
+                <div className="flex items-center gap-3 flex-wrap mb-2">
+                  <span className="text-kst-white font-medium truncate">
+                    {r.full_name ?? 'Unnamed'}
+                  </span>
+                  {r.specialty && <SpecialtyBadge specialty={r.specialty} />}
+                  <span className="ml-auto text-[11px] text-kst-muted shrink-0">
+                    {completed}/{assigned} done
+                    {overdue > 0 && (
+                      <span className="ml-2 text-kst-error">
+                        · {overdue} overdue
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-kst-gold to-kst-gold-light rounded-full transition-all"
+                    style={{ width: `${completionPct}%` }}
+                  />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// F) Time to launch
+// ───────────────────────────────────────────────────────────────────────────
+
+function TimeToLaunchPanel({ rows }: { rows: ClientTimeToLaunchRow[] }) {
+  const valid = rows.filter(
+    (r) => r.days_to_launch != null && Number.isFinite(Number(r.days_to_launch))
+  )
+  const avg =
+    valid.length > 0
+      ? valid.reduce((sum, r) => sum + Number(r.days_to_launch), 0) /
+        valid.length
+      : null
+
+  return (
+    <div className="glass-panel p-6 md:p-8">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Rocket size={16} className="text-kst-gold" />
+          <h3 className="text-kst-white font-semibold">Time to Launch</h3>
+        </div>
+        {avg != null && (
+          <span className="text-kst-muted text-xs">
+            Average:{' '}
+            <span className="text-kst-white font-semibold">
+              {avg.toFixed(1)} days
+            </span>
+          </span>
+        )}
+      </div>
+
+      {valid.length === 0 ? (
+        <p className="text-kst-muted text-sm py-6 text-center">
+          No launches yet.
+        </p>
+      ) : (
+        <ul className="divide-y divide-white/[0.04]">
+          {valid.map((r, i) => {
+            const days = Number(r.days_to_launch)
+            const isFaster = avg != null && days < avg
+            return (
+              <li
+                key={i}
+                className="flex items-center gap-3 py-3 flex-wrap"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="text-kst-white font-medium truncate">
+                    {r.company_name ?? '—'}
+                  </span>
+                </div>
+                {r.program && <ProgramBadge program={r.program} />}
+                <span
+                  className={cn(
+                    'text-sm shrink-0 w-24 text-right',
+                    isFaster ? 'text-kst-gold font-semibold' : 'text-kst-white'
+                  )}
+                >
+                  {days.toFixed(0)} days
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
