@@ -61,9 +61,20 @@ export function ProtectedShell({
   const initials = initialsOf(displayName)
 
   return (
-    <div className="min-h-screen bg-kst-black overflow-x-hidden">
-      {/* Top Bar — sticky */}
-      <header className="sticky top-0 z-50 h-16 flex items-center justify-between px-4 md:px-6 bg-kst-dark border-b border-white/[0.06]">
+    <div className="bg-kst-black">
+      {/* Top Bar — fixed. Inline styles so nothing in the cascade can
+          override z-index / top / position. */}
+      <header
+        className="flex items-center justify-between px-4 md:px-6 bg-kst-dark border-b border-white/[0.06]"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 64,
+          zIndex: 50,
+        }}
+      >
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -92,49 +103,70 @@ export function ProtectedShell({
         </div>
       </header>
 
-      <div className="flex items-start">
-        {/* Sidebar (desktop) — sticky just below the top bar */}
-        <aside className="hidden md:flex sticky top-16 h-[calc(100vh-4rem)] w-[260px] flex-col bg-[#111111] border-r border-white/[0.06] overflow-y-auto shrink-0">
-          <SidebarContent navItems={navItems} pathname={pathname} />
-        </aside>
+      {/* Sidebar (desktop) — fixed below the top bar, full-height scroll */}
+      <aside
+        className="hidden md:flex flex-col bg-[#111111] border-r border-white/[0.06]"
+        style={{
+          position: 'fixed',
+          top: 64,
+          left: 0,
+          bottom: 0,
+          width: 260,
+          zIndex: 40,
+          overflowY: 'auto',
+        }}
+      >
+        <SidebarContent navItems={navItems} pathname={pathname} />
+      </aside>
 
-        {/* Sidebar (mobile overlay) */}
-        {mobileOpen && (
-          <div className="md:hidden fixed inset-0 z-40 flex">
-            <div
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-              onClick={() => setMobileOpen(false)}
-              aria-hidden
+      {/* Sidebar (mobile overlay) */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-[60] flex">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden
+          />
+          <aside className="relative w-[260px] bg-[#111111] border-r border-white/[0.06] flex flex-col">
+            <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06]">
+              <span
+                className="text-2xl text-kst-gold"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                KST
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="p-2 text-kst-white"
+                aria-label="Close navigation"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <SidebarContent
+              navItems={navItems}
+              pathname={pathname}
+              onNavigate={() => setMobileOpen(false)}
             />
-            <aside className="relative w-[260px] bg-[#111111] border-r border-white/[0.06] flex flex-col">
-              <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06]">
-                <span
-                  className="text-2xl text-kst-gold"
-                  style={{ fontFamily: 'var(--font-display)' }}
-                >
-                  KST
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className="p-2 text-kst-white"
-                  aria-label="Close navigation"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <SidebarContent
-                navItems={navItems}
-                pathname={pathname}
-                onNavigate={() => setMobileOpen(false)}
-              />
-            </aside>
-          </div>
-        )}
+          </aside>
+        </div>
+      )}
 
-        {/* Main — scrolls with the page; sticky header + sidebar stay put */}
-        <main className="flex-1 min-w-0 p-6 md:p-8">{children}</main>
-      </div>
+      {/* Main content — fills the viewport below the top bar and to
+          the right of the fixed sidebar. Scrolls internally so the
+          bar and sidebar never drift. The left margin only kicks in
+          at md+ because the mobile sidebar is an overlay, not inline. */}
+      <main
+        className="p-6 md:p-8 md:ml-[260px]"
+        style={{
+          marginTop: 64,
+          height: 'calc(100vh - 64px)',
+          overflowY: 'auto',
+        }}
+      >
+        {children}
+      </main>
     </div>
   )
 }
