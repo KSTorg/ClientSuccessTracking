@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getUserWithProfile } from '@/lib/supabase/get-user'
+import { createClient } from '@/lib/supabase/server'
 
 export default async function Home() {
   const data = await getUserWithProfile()
@@ -17,6 +18,9 @@ export default async function Home() {
     redirect('/my-progress')
   }
 
-  // Authenticated but missing/unknown role: send to login with a hint.
+  // Authenticated but no/unknown profile: clear the session before bouncing
+  // to /login so the middleware doesn't ping-pong them back here.
+  const supabase = await createClient()
+  await supabase.auth.signOut()
   redirect('/login?error=missing_profile')
 }

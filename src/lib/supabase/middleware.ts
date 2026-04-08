@@ -59,9 +59,17 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Signed in: visiting /login should send them home (root will route by role)
-  if (user && pathname === '/login') {
+  // — UNLESS the URL has an `?error=` param. That means we just bounced them
+  // here intentionally (e.g. missing_profile) and the root page is about to
+  // sign them out. Letting the redirect through would create an infinite loop.
+  if (
+    user &&
+    pathname === '/login' &&
+    !request.nextUrl.searchParams.has('error')
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
+    url.search = ''
     return NextResponse.redirect(url)
   }
 

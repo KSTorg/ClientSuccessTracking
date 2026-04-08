@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getUserWithProfile } from '@/lib/supabase/get-user'
+import { createClient } from '@/lib/supabase/server'
 import { ProtectedShell } from '@/components/protected-shell'
 
 export default async function ProtectedLayout({
@@ -13,6 +14,9 @@ export default async function ProtectedLayout({
     redirect('/login')
   }
   if (!data.profile) {
+    // Clear the session so the middleware doesn't bounce them back here.
+    const supabase = await createClient()
+    await supabase.auth.signOut()
     redirect('/login?error=missing_profile')
   }
 
