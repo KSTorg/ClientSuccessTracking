@@ -1,5 +1,12 @@
 import Link from 'next/link'
-import { Users, UserPlus, Rocket, TrendingUp } from 'lucide-react'
+import {
+  CheckCircle,
+  ClipboardList,
+  Rocket,
+  TrendingUp,
+  UserPlus,
+  Users,
+} from 'lucide-react'
 import { requireTeamMember } from '@/lib/auth/require-team'
 import { createClient } from '@/lib/supabase/server'
 import { StatusBadge } from '@/components/clients/status-badge'
@@ -15,6 +22,28 @@ interface RecentClient {
   created_at: string
 }
 
+interface LaunchedRow {
+  id: string
+  company_name: string
+  launched_date: string
+}
+
+function parseLocalDate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y!, (m ?? 1) - 1, d ?? 1)
+}
+
+function currentWeekFor(launched: string): number {
+  const launchedAt = parseLocalDate(launched)
+  launchedAt.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days = Math.floor(
+    (today.getTime() - launchedAt.getTime()) / 86400000
+  )
+  return Math.max(1, Math.floor(days / 7) + 1)
+}
+
 export default async function DashboardPage() {
   const { profile } = await requireTeamMember()
   const supabase = await createClient()
@@ -25,6 +54,7 @@ export default async function DashboardPage() {
     launchedRes,
     tasksRes,
     recentRes,
+    launchedListRes,
   ] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase
@@ -41,6 +71,11 @@ export default async function DashboardPage() {
       .select('id, company_name, contact_name, status, joined_date, created_at')
       .order('created_at', { ascending: false })
       .limit(5),
+    supabase
+      .from('clients')
+      .select('id, company_name, launched_date')
+      .not('launched_date', 'is', null)
+      .order('launched_date', { ascending: false }),
   ])
 
   const totalClients = totalRes.count ?? 0
@@ -54,6 +89,38 @@ export default async function DashboardPage() {
     totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const recent = (recentRes.data ?? []) as RecentClient[]
+  const launchedList = (launchedListRes.data ?? []) as LaunchedRow[]
+
+  // Compute "Reports Due This Week"
+  let reportsDue: { id: string; company_name: string; weekNum: number }[] = []
+  if (launchedList.length > 0) {
+    const ids = launchedList.map((c) => c.id)
+    const { data: existingReports } = await supabase
+      .from('weekly_reports')
+      .select('client_id, week_number')
+      .in('client_id', ids)
+
+    const byClient = new Map<string, Set<number>>()
+    for (const r of (existingReports ?? []) as {
+      client_id: string
+      week_number: number
+    }[]) {
+      if (!byClient.has(r.client_id)) byClient.set(r.client_id, new Set())
+      byClient.get(r.client_id)!.add(r.week_number)
+    }
+
+    for (const c of launchedList) {
+      const weekNum = currentWeekFor(c.launched_date)
+      if (!byClient.get(c.id)?.has(weekNum)) {
+        reportsDue.push({
+          id: c.id,
+          company_name: c.company_name,
+          weekNum,
+        })
+      }
+    }
+  }
+
   const name = profile?.full_name ?? 'there'
 
   return (
@@ -138,6 +205,48 @@ export default async function DashboardPage() {
           </ul>
         )}
       </div>
+
+      {/* Reports Due This Week */}
+      {launchedList.length > 0 && (
+        <div className="glass-panel p-6 md:p-8 mt-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-kst-white text-xl font-semibold flex items-center gap-2">
+              <ClipboardList size={18} className="text-kst-gold" />
+              Reports Due This Week
+            </h2>
+          </div>
+
+          {reportsDue.length === 0 ? (
+            <div className="flex items-center gap-2 text-kst-success text-sm py-4">
+              <CheckCircle size={16} />
+              All caught up!
+            </div>
+          ) : (
+            <ul className="divide-y divide-white/[0.06]">
+              {reportsDue.map((d) => (
+                <li key={d.id}>
+                  <Link
+                    href={`/clients/${d.id}?tab=success`}
+                    className="flex items-center justify-between py-4 px-2 -mx-2 rounded-lg hover:bg-white/[0.03] transition-colors gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-kst-white font-medium truncate">
+                        {d.company_name}
+                      </p>
+                      <p className="text-kst-muted text-xs">
+                        Week {d.weekNum}
+                      </p>
+                    </div>
+                    <span className="text-kst-gold text-xs font-medium shrink-0">
+                      Fill Report →
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }

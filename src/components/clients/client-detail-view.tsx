@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Check,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SetupChecklist } from '@/components/SetupChecklist'
+import { SuccessTracking } from '@/components/SuccessTracking'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { cn, formatDate } from '@/lib/utils'
 import {
@@ -47,6 +48,7 @@ type Tab = 'setup' | 'success'
 
 export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [status, setStatus] = useState<ClientStatus>(client.status)
@@ -59,7 +61,11 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
     completed: number
   } | null>(null)
   const [savingField, setSavingField] = useState<'status' | 'csm' | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('setup')
+  const [activeTab, setActiveTab] = useState<Tab>(() =>
+    searchParams.get('tab') === 'success' && client.launched_date
+      ? 'success'
+      : 'setup'
+  )
 
   const isLaunched = !!launchedDate
 
@@ -312,11 +318,10 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
             onStage12ProgressChange={handleStage12Progress}
           />
         ) : (
-          <div className="glass-panel p-8">
-            <p className="text-kst-muted text-sm">
-              Weekly reports coming in Phase 5
-            </p>
-          </div>
+          <SuccessTracking
+            clientId={client.id}
+            launchedDate={launchedDate!}
+          />
         )}
       </div>
 
