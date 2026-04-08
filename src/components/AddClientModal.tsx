@@ -5,8 +5,14 @@ import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/supabase/invite'
+import { TeamSlotPicker } from '@/components/clients/client-team-section'
 import { cn } from '@/lib/utils'
-import type { CsmOption, Program } from '@/lib/types'
+import {
+  EMPTY_CLIENT_TEAM,
+  type ClientTeam,
+  type CsmOption,
+  type Program,
+} from '@/lib/types'
 
 interface AddClientModalProps {
   open: boolean
@@ -34,7 +40,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [joinedDate, setJoinedDate] = useState(today)
-  const [csmId, setCsmId] = useState<string>('')
+  const [clientTeam, setClientTeam] = useState<ClientTeam>(EMPTY_CLIENT_TEAM)
   const [notes, setNotes] = useState('')
   const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -49,7 +55,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       setContactName('')
       setContactEmail('')
       setJoinedDate(today)
-      setCsmId('')
+      setClientTeam(EMPTY_CLIENT_TEAM)
       setNotes('')
       setPassword('')
       setFieldErrors({})
@@ -96,13 +102,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
         contact_name: contactName.trim(),
         contact_email: contactEmail.trim(),
         joined_date: joinedDate || null,
-        client_team: {
-          csm: csmId || null,
-          ads: null,
-          systems: null,
-          organic: null,
-          sales: null,
-        },
+        client_team: clientTeam,
         notes: notes.trim() || null,
         status: 'onboarding',
         program,
@@ -283,32 +283,66 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
             />
           </Field>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Joined Date">
-              <input
-                type="date"
-                value={joinedDate}
-                onChange={(e) => setJoinedDate(e.target.value)}
-                disabled={loading}
-                className={inputClass}
-              />
-            </Field>
+          <Field label="Joined Date">
+            <input
+              type="date"
+              value={joinedDate}
+              onChange={(e) => setJoinedDate(e.target.value)}
+              disabled={loading}
+              className={inputClass}
+            />
+          </Field>
 
-            <Field label="Assigned CSM">
-              <select
-                value={csmId}
-                onChange={(e) => setCsmId(e.target.value)}
-                disabled={loading}
-                className={cn(inputClass, 'appearance-none pr-9')}
-              >
-                <option value="">Unassigned</option>
-                {csms.map((csm) => (
-                  <option key={csm.id} value={csm.id}>
-                    {csm.full_name ?? 'Unnamed'}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          <div>
+            <span className="block text-xs uppercase tracking-wider text-kst-muted mb-2">
+              Client Team
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <TeamSlotPicker
+                label="CSM"
+                value={clientTeam.csm}
+                teamMembers={csms}
+                onChange={(id) =>
+                  setClientTeam((t) => ({ ...t, csm: id }))
+                }
+              />
+              <TeamSlotPicker
+                label="Ads"
+                match="ads"
+                value={clientTeam.ads}
+                teamMembers={csms}
+                onChange={(id) =>
+                  setClientTeam((t) => ({ ...t, ads: id }))
+                }
+              />
+              <TeamSlotPicker
+                label="Systems"
+                match="systems"
+                value={clientTeam.systems}
+                teamMembers={csms}
+                onChange={(id) =>
+                  setClientTeam((t) => ({ ...t, systems: id }))
+                }
+              />
+              <TeamSlotPicker
+                label="Organic"
+                match="organic"
+                value={clientTeam.organic}
+                teamMembers={csms}
+                onChange={(id) =>
+                  setClientTeam((t) => ({ ...t, organic: id }))
+                }
+              />
+              <TeamSlotPicker
+                label="Sales"
+                match="sales"
+                value={clientTeam.sales}
+                teamMembers={csms}
+                onChange={(id) =>
+                  setClientTeam((t) => ({ ...t, sales: id }))
+                }
+              />
+            </div>
           </div>
 
           <Field label="Notes">

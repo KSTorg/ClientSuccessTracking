@@ -39,6 +39,7 @@ interface ClientDetailViewProps {
   csms: CsmOption[]
   contacts: ClientContact[]
   currentUserRole: Role
+  primaryContactName: string | null
 }
 
 const STATUS_DOT: Record<ClientStatus, string> = {
@@ -62,6 +63,7 @@ export function ClientDetailView({
   csms,
   contacts,
   currentUserRole,
+  primaryContactName,
 }: ClientDetailViewProps) {
   const isAdmin = currentUserRole === 'admin'
   const router = useRouter()
@@ -348,18 +350,6 @@ export function ClientDetailView({
         currentUserRole={currentUserRole}
       />
 
-      {/* Client Team */}
-      <ClientTeamSection
-        clientId={client.id}
-        initialTeam={
-          client.client_team ?? {
-            ...EMPTY_CLIENT_TEAM,
-            csm: client.assigned_csm ?? null,
-          }
-        }
-        teamMembers={csms}
-      />
-
       {/* Launch banner */}
       <LaunchStatusBanner
         launchedDate={launchedDate}
@@ -398,6 +388,7 @@ export function ClientDetailView({
               full_name: c.full_name,
               specialty: c.specialty ?? null,
             }))}
+            clientContactName={primaryContactName}
             onLaunchedChange={handleLaunchedChange}
             onStage12ProgressChange={handleStage12Progress}
           />
@@ -453,6 +444,18 @@ export function ClientDetailView({
           </div>
         )}
       </div>
+
+      {/* Client Team */}
+      <ClientTeamSection
+        clientId={client.id}
+        initialTeam={
+          client.client_team ?? {
+            ...EMPTY_CLIENT_TEAM,
+            csm: client.assigned_csm ?? null,
+          }
+        }
+        teamMembers={csms}
+      />
 
       {/* Danger zone — admin only */}
       {isAdmin && (

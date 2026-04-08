@@ -89,6 +89,9 @@ interface SetupChecklistProps {
   isLaunched?: boolean
   program?: Program
   teamMembers?: ChecklistTeamMember[]
+  /** Primary contact name — shown in team view on rows with a null
+   *  assignee so the team knows whose work it is. */
+  clientContactName?: string | null
   onLaunchedChange?: (launchedDate: string | null) => void
   onStage12ProgressChange?: (progress: Stage12Progress) => void
 }
@@ -222,6 +225,7 @@ export function SetupChecklist({
   isLaunched = false,
   program = 'educator_incubator',
   teamMembers = [],
+  clientContactName = null,
   onLaunchedChange,
   onStage12ProgressChange,
 }: SetupChecklistProps) {
@@ -658,6 +662,7 @@ export function SetupChecklist({
                       program={program}
                       teamMembers={teamMembers}
                       teamById={teamById}
+                      clientContactName={clientContactName}
                       onSetStatus={updateTaskStatus}
                       onReassign={reassignTask}
                       isParentExpanded={openParents[ct.id] ?? false}
@@ -768,6 +773,7 @@ interface TopLevelTaskProps {
   program: Program
   teamMembers: ChecklistTeamMember[]
   teamById: Map<string, ChecklistTeamMember>
+  clientContactName: string | null
   onSetStatus: (id: string, next: TaskStatus) => void
   onReassign: (id: string, next: string | null) => void
   isParentExpanded: boolean
@@ -781,6 +787,7 @@ function TopLevelTask({
   program,
   teamMembers,
   teamById,
+  clientContactName,
   onSetStatus,
   onReassign,
   isParentExpanded,
@@ -901,6 +908,7 @@ function TopLevelTask({
                 assigneeId={ct.assigned_to}
                 teamMembers={teamMembers}
                 teamById={teamById}
+                clientContactName={clientContactName}
                 onChange={(next) => onReassign(ct.id, next)}
               />
             ) : isTeamOwnedForClient ? (
@@ -938,6 +946,7 @@ function TopLevelTask({
                     program={program}
                     teamMembers={teamMembers}
                     teamById={teamById}
+                    clientContactName={clientContactName}
                     onSetStatus={onSetStatus}
                     onReassign={onReassign}
                   />
@@ -957,6 +966,7 @@ function SubtaskRow({
   program,
   teamMembers,
   teamById,
+  clientContactName,
   onSetStatus,
   onReassign,
 }: {
@@ -965,6 +975,7 @@ function SubtaskRow({
   program: Program
   teamMembers: ChecklistTeamMember[]
   teamById: Map<string, ChecklistTeamMember>
+  clientContactName: string | null
   onSetStatus: (id: string, next: TaskStatus) => void
   onReassign: (id: string, next: string | null) => void
 }) {
@@ -1004,6 +1015,7 @@ function SubtaskRow({
           assigneeId={ct.assigned_to}
           teamMembers={teamMembers}
           teamById={teamById}
+          clientContactName={clientContactName}
           onChange={(next) => onReassign(ct.id, next)}
           compact
         />
@@ -1137,7 +1149,7 @@ function TeamAssigneeTag({
   compact?: boolean
 }) {
   const first =
-    (assignee?.full_name ?? '').trim().split(/\s+/)[0] ?? 'Team'
+    (assignee?.full_name ?? '').trim().split(/\s+/)[0] ?? 'KST Team'
   return (
     <span
       className={cn(
@@ -1151,7 +1163,7 @@ function TeamAssigneeTag({
           {first}
         </>
       ) : (
-        'Team'
+        'KST Team'
       )}
     </span>
   )
@@ -1181,12 +1193,14 @@ function AssigneePicker({
   assigneeId,
   teamMembers,
   teamById,
+  clientContactName,
   onChange,
   compact,
 }: {
   assigneeId: string | null
   teamMembers: ChecklistTeamMember[]
   teamById: Map<string, ChecklistTeamMember>
+  clientContactName: string | null
   onChange: (next: string | null) => void
   compact?: boolean
 }) {
@@ -1269,6 +1283,10 @@ function AssigneePicker({
               </span>
             )}
           </>
+        ) : clientContactName ? (
+          <span className="text-[11px] text-kst-muted px-1 truncate max-w-[8rem]">
+            {clientContactName}
+          </span>
         ) : (
           <span className="text-[11px] text-kst-muted italic px-1">
             Unassigned
@@ -1294,7 +1312,11 @@ function AssigneePicker({
               assigneeId === null && 'bg-kst-gold/10'
             )}
           >
-            <span className="text-kst-muted italic">Unassigned</span>
+            <span className="text-kst-muted italic">
+              {clientContactName
+                ? `Client (${clientContactName})`
+                : 'Unassigned'}
+            </span>
             {assigneeId === null && <Check size={13} className="text-kst-gold" />}
           </button>
           {grouped.map(([groupKey, members]) => (

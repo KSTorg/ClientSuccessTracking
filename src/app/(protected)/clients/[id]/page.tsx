@@ -44,12 +44,19 @@ export default async function ClientDetailPage({ params }: PageProps) {
     : null
   const client: ClientWithCsm = { ...raw, csm }
 
+  // Compute the primary contact's display name for the checklist's
+  // "client task" rows. Prefer a flagged primary from client_contacts,
+  // otherwise any contact, otherwise the legacy contact_name column.
+  const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null
+  const primaryContactName = primary?.full_name ?? raw.contact_name ?? null
+
   return (
     <ClientDetailView
       client={client}
       csms={csms}
       contacts={contacts}
       currentUserRole={profile!.role}
+      primaryContactName={primaryContactName}
     />
   )
 }

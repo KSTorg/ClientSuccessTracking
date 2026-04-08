@@ -97,7 +97,7 @@ export function ClientTeamSection({
       <h3 className="text-kst-white font-semibold mb-4">Client Team</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {SLOTS.map((s) => (
-          <SlotPicker
+          <TeamSlotPicker
             key={s.key}
             label={s.label}
             match={s.match}
@@ -112,18 +112,18 @@ export function ClientTeamSection({
   )
 }
 
-function SlotPicker({
+export function TeamSlotPicker({
   label,
   match,
   value,
-  saving,
+  saving = false,
   teamMembers,
   onChange,
 }: {
   label: string
   match?: Specialty
   value: string | null
-  saving: boolean
+  saving?: boolean
   teamMembers: CsmOption[]
   onChange: (id: string | null) => void
 }) {
