@@ -32,7 +32,7 @@ type MetricKey =
   | 'ad_spend'
   | 'leads_generated'
   | 'calls_booked'
-  | 'calls_completed'
+  | 'calls_showed_up'
   | 'students_enrolled'
   | 'revenue_collected'
 
@@ -71,7 +71,7 @@ const INPUT_METRICS: InputMetricDef[] = [
   { key: 'ad_spend', label: 'Ad Spend', prefix: '$' },
   { key: 'leads_generated', label: 'Leads Generated' },
   { key: 'calls_booked', label: 'Calls Booked' },
-  { key: 'calls_completed', label: 'Calls Completed' },
+  { key: 'calls_showed_up', label: 'Calls Showed Up' },
   { key: 'students_enrolled', label: 'Students Enrolled' },
   { key: 'revenue_collected', label: 'Revenue Collected', prefix: '$' },
 ]
@@ -108,8 +108,8 @@ const CALC_METRICS: CalcMetricDef[] = [
     key: 'close_rate',
     label: 'Close Rate',
     compute: (m) =>
-      m.calls_completed && m.students_enrolled != null
-        ? (m.students_enrolled / m.calls_completed) * 100
+      m.calls_showed_up && m.students_enrolled != null
+        ? (m.students_enrolled / m.calls_showed_up) * 100
         : null,
     format: (v) => `${v.toFixed(1)}%`,
   },
@@ -166,17 +166,29 @@ function computeCurrentWeek(launchedAt: Date, today: Date): number {
   return Math.max(1, diffWeeks + 1)
 }
 
+const MONTH_LABELS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
 function formatRange(start: Date, end: Date): string {
   const sameYear = start.getFullYear() === end.getFullYear()
   const sameMonth = sameYear && start.getMonth() === end.getMonth()
-  const startOpts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-  const endOpts: Intl.DateTimeFormatOptions = sameMonth
-    ? { day: 'numeric', year: 'numeric' }
-    : { month: 'short', day: 'numeric', year: 'numeric' }
-  return `${start.toLocaleDateString('en-US', startOpts)} – ${end.toLocaleDateString(
-    'en-US',
-    endOpts
-  )}`
+  const startStr = `${MONTH_LABELS[start.getMonth()]} ${start.getDate()}`
+  const endStr = sameMonth
+    ? `${end.getDate()}, ${end.getFullYear()}`
+    : `${MONTH_LABELS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`
+  return `${startStr} – ${endStr}`
 }
 
 function parseNum(s: string): number | undefined {
