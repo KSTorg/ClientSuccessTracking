@@ -16,6 +16,10 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { SetupChecklist } from '@/components/SetupChecklist'
 import { SuccessTracking } from '@/components/SuccessTracking'
+import {
+  ContactsSection,
+  type ClientContact,
+} from '@/components/clients/contacts-section'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { cn, formatDate } from '@/lib/utils'
 import {
@@ -28,6 +32,7 @@ import {
 interface ClientDetailViewProps {
   client: ClientWithCsm
   csms: CsmOption[]
+  contacts: ClientContact[]
 }
 
 const STATUS_DOT: Record<ClientStatus, string> = {
@@ -46,7 +51,11 @@ const STATUS_LABEL: Record<ClientStatus, string> = {
 
 type Tab = 'setup' | 'success'
 
-export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
+export function ClientDetailView({
+  client,
+  csms,
+  contacts,
+}: ClientDetailViewProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -283,6 +292,15 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Contacts */}
+      <ContactsSection
+        clientId={client.id}
+        clientName={client.company_name}
+        initialContacts={contacts}
+        legacyContactName={client.contact_name}
+        legacyContactEmail={client.contact_email}
+      />
 
       {/* Launch banner */}
       <LaunchStatusBanner

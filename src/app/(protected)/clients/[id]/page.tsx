@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireTeamMember } from '@/lib/auth/require-team'
 import { createClient } from '@/lib/supabase/server'
 import { ClientDetailView } from '@/components/clients/client-detail-view'
+import type { ClientContact } from '@/components/clients/contacts-section'
 import type { ClientWithCsm, CsmOption } from '@/lib/types'
 
 interface PageProps {
@@ -14,7 +15,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   const supabase = await createClient()
 
-  const [clientRes, csmsRes] = await Promise.all([
+  const [clientRes, csmsRes, contactsRes] = await Promise.all([
     supabase
       .from('clients')
       .select('*, csm:profiles!assigned_csm(id, full_name)')
@@ -25,6 +26,11 @@ export default async function ClientDetailPage({ params }: PageProps) {
       .select('id, full_name')
       .in('role', ['admin', 'csm'])
       .order('full_name'),
+    supabase
+      .from('client_contacts')
+      .select('*')
+      .eq('client_id', id)
+      .order('created_at'),
   ])
 
   if (clientRes.error || !clientRes.data) {
@@ -33,6 +39,9 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   const client = clientRes.data as ClientWithCsm
   const csms = (csmsRes.data ?? []) as CsmOption[]
+  const contacts = (contactsRes.data ?? []) as ClientContact[]
 
-  return <ClientDetailView client={client} csms={csms} />
+  return (
+    <ClientDetailView client={client} csms={csms} contacts={contacts} />
+  )
 }

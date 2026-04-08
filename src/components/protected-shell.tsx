@@ -3,7 +3,14 @@
 import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, CheckSquare, Menu, X } from 'lucide-react'
+import {
+  Briefcase,
+  CheckSquare,
+  LayoutDashboard,
+  Menu,
+  Users,
+  X,
+} from 'lucide-react'
 import { SignOutButton } from '@/components/sign-out-button'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
@@ -27,7 +34,8 @@ function getNavItems(role: Role): NavItem[] {
   }
   return [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/clients', label: 'Clients', icon: Users },
+    { href: '/clients', label: 'Clients', icon: Briefcase },
+    { href: '/team', label: 'Team', icon: Users },
   ]
 }
 
