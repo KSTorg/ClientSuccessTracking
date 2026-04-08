@@ -9,7 +9,7 @@ export interface Profile {
   full_name: string | null
   role: Role
   email?: string | null
-  specialty?: 'ads' | 'systems' | 'organic' | 'sales' | null
+  specialty?: 'csm' | 'ads' | 'systems' | 'organic' | 'sales' | null
 }
 
 export interface UserWithProfile {

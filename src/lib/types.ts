@@ -21,11 +21,18 @@ export const PROGRAM_SHORT: Record<Program, string> = {
   accelerator: 'ACC',
 }
 
-export type Specialty = 'ads' | 'systems' | 'organic' | 'sales'
+export type Specialty = 'csm' | 'ads' | 'systems' | 'organic' | 'sales'
 
-export const SPECIALTIES: Specialty[] = ['ads', 'systems', 'organic', 'sales']
+export const SPECIALTIES: Specialty[] = [
+  'csm',
+  'ads',
+  'systems',
+  'organic',
+  'sales',
+]
 
 export const SPECIALTY_LABELS: Record<Specialty, string> = {
+  csm: 'CSM',
   ads: 'Ads',
   systems: 'Systems',
   organic: 'Organic',

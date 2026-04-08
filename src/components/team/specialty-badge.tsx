@@ -4,6 +4,12 @@ const STYLES: Record<
   Specialty,
   { color: string; border: string; bg: string }
 > = {
+  csm: {
+    // Matches the admin role badge — gold, derived from var(--kst-gold)
+    color: '#C9A84C',
+    border: 'rgba(201, 168, 76, 0.55)',
+    bg: 'rgba(201, 168, 76, 0.10)',
+  },
   ads: {
     color: '#FB923C',
     border: 'rgba(251, 146, 60, 0.55)',

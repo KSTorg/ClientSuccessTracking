@@ -7,7 +7,7 @@ interface InviteBody {
   fullName?: string
   role?: 'admin' | 'csm' | 'client'
   password?: string
-  specialty?: 'ads' | 'systems' | 'organic' | 'sales' | null
+  specialty?: 'csm' | 'ads' | 'systems' | 'organic' | 'sales' | null
 }
 
 export async function POST(request: NextRequest) {
@@ -54,7 +54,8 @@ export async function POST(request: NextRequest) {
   const role = body.role
   const password = body.password
   const specialty =
-    body.specialty && ['ads', 'systems', 'organic', 'sales'].includes(body.specialty)
+    body.specialty &&
+    ['csm', 'ads', 'systems', 'organic', 'sales'].includes(body.specialty)
       ? body.specialty
       : null
 

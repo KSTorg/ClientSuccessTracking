@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/supabase/invite'
-import { TeamSlotPicker } from '@/components/clients/client-team-section'
+import {
+  TeamSlotPicker,
+  buildDefaultClientTeam,
+} from '@/components/clients/client-team-section'
 import { cn } from '@/lib/utils'
 import {
   EMPTY_CLIENT_TEAM,
@@ -47,9 +50,13 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Reset state when the modal closes
+  // Reset state when the modal closes; auto-fill the client team when
+  // it opens so each slot starts on the first team member with the
+  // matching specialty.
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setClientTeam(buildDefaultClientTeam(csms))
+    } else {
       setProgram('educator_incubator')
       setCompanyName('')
       setContactName('')
@@ -62,7 +69,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       setSubmitError(null)
       setLoading(false)
     }
-  }, [open, today])
+  }, [open, today, csms])
 
   // Close on Escape
   useEffect(() => {
@@ -311,6 +318,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <TeamSlotPicker
                 label="CSM"
+                match="csm"
                 value={clientTeam.csm}
                 teamMembers={csms}
                 onChange={(id) =>

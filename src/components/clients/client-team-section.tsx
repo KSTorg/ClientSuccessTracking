@@ -23,12 +23,30 @@ interface SlotDef {
 }
 
 const SLOTS: SlotDef[] = [
-  { key: 'csm', label: 'CSM' },
+  { key: 'csm', label: 'CSM', match: 'csm' },
   { key: 'ads', label: 'Ads', match: 'ads' },
   { key: 'systems', label: 'Systems', match: 'systems' },
   { key: 'organic', label: 'Organic', match: 'organic' },
   { key: 'sales', label: 'Sales', match: 'sales' },
 ]
+
+/**
+ * Auto-fill a ClientTeam from the given team members: for each slot, pick
+ * the first team member whose specialty matches. If no matching member
+ * exists, the slot stays null.
+ */
+export function buildDefaultClientTeam(members: CsmOption[]): ClientTeam {
+  function pick(spec: Specialty): string | null {
+    return members.find((m) => m.specialty === spec)?.id ?? null
+  }
+  return {
+    csm: pick('csm'),
+    ads: pick('ads'),
+    systems: pick('systems'),
+    organic: pick('organic'),
+    sales: pick('sales'),
+  }
+}
 
 function initialsOf(name: string | null): string {
   const t = (name ?? '').trim()
@@ -73,6 +91,38 @@ export function ClientTeamSection({
   const supabase = createClient()
   const [team, setTeam] = useState<ClientTeam>(initialTeam)
   const [savingSlot, setSavingSlot] = useState<SlotKey | null>(null)
+  const autoFilledRef = useRef(false)
+
+  // Auto-fill defaults on first mount if every slot is null (new client
+  // that hasn't had a team assigned yet). Persists immediately so the
+  // suggestion becomes the saved state.
+  useEffect(() => {
+    if (autoFilledRef.current) return
+    autoFilledRef.current = true
+
+    const allNull = Object.values(team).every((v) => v === null)
+    if (!allNull) return
+
+    const suggested = buildDefaultClientTeam(teamMembers)
+    const anyFilled = Object.values(suggested).some((v) => v !== null)
+    if (!anyFilled) return
+
+    setTeam(suggested)
+    supabase
+      .from('clients')
+      .update({ client_team: suggested })
+      .eq('id', clientId)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('[client team] auto-fill save failed:', error.message)
+          // Roll back local state so the UI reflects the DB
+          setTeam(initialTeam)
+          return
+        }
+        router.refresh()
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function updateSlot(slot: SlotKey, memberId: string | null) {
     const prev = team
