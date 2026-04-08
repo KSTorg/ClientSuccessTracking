@@ -1822,6 +1822,22 @@ function StatusGlyph({ status }: { status: TaskStatus }) {
 // Task links
 // ───────────────────────────────────────────────────────────────────────────
 
+function matchesProgramTag(key: string, program: Program): boolean {
+  const hasEi = /\(\s*EI\s*\)/i.test(key)
+  const hasAcc = /\(\s*ACC\s*\)/i.test(key)
+  if (hasEi && program !== 'educator_incubator') return false
+  if (hasAcc && program !== 'accelerator') return false
+  return true
+}
+
+function stripProgramTag(key: string): string {
+  return key
+    .replace(/\s*\(\s*(?:EI|ACC)\s*\)\s*/gi, '')
+    .replace(/_+$/g, '')
+    .replace(/\s+$/g, '')
+    .trim()
+}
+
 function TaskLinks({
   task,
   small = false,
@@ -1834,7 +1850,11 @@ function TaskLinks({
   if (!task) return null
 
   const validExtras = task.extra_links
-    ? Object.entries(task.extra_links).filter(([, url]) => hasUrl(url))
+    ? Object.entries(task.extra_links)
+        .filter(([key, url]) => hasUrl(url) && matchesProgramTag(key, program))
+        .map(
+          ([key, url]) => [stripProgramTag(key) || key, url] as [string, string]
+        )
     : []
 
   const hasTraining = hasUrl(task.training_url)
