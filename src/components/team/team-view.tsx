@@ -103,10 +103,57 @@ export function TeamView({
 
   async function removeMember(member: TeamMember) {
     setRemoveError(null)
+
+    // Defensive guardrails — block any path that could wipe a profile by
+    // accident. The UI also disables ineligible options, but enforce here
+    // too in case state is stale.
+    if (member.id === currentUserId) {
+      setRemoveError('You cannot remove your own account.')
+      return
+    }
+    if (member.role === 'admin') {
+      setRemoveError(
+        'Admins cannot be removed from this screen. Demote them to CSM first if needed.'
+      )
+      return
+    }
+    if (member.role !== 'csm') {
+      setRemoveError('Only CSM team members can be removed here.')
+      return
+    }
+
+    // Sanity-check against the live profiles row before deleting, in case
+    // their role changed in another tab since this view was rendered.
+    const { data: live, error: checkErr } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('id', member.id)
+      .maybeSingle()
+    if (checkErr) {
+      setRemoveError(checkErr.message)
+      return
+    }
+    if (!live) {
+      setRemoveError('That profile no longer exists.')
+      setMembers((m) => m.filter((x) => x.id !== member.id))
+      setConfirmRemove(null)
+      return
+    }
+    if (live.role !== 'csm') {
+      setRemoveError(
+        `That member is now a ${live.role}; only CSMs can be removed.`
+      )
+      return
+    }
+
+    // Scoped delete: id match AND role still 'csm'. Even if something else
+    // changes between the check and the delete, the role guard ensures we
+    // can never wipe an admin row.
     const { error } = await supabase
       .from('profiles')
       .delete()
       .eq('id', member.id)
+      .eq('role', 'csm')
     if (error) {
       setRemoveError(error.message)
       return
@@ -293,7 +340,7 @@ function RowMenu({
                 Change Role
               </MenuItem>
               <MenuItem
-                disabled={isMe}
+                disabled={isMe || member.role !== 'csm'}
                 tone="danger"
                 onClick={() => {
                   setOpen(false)
@@ -504,6 +551,10 @@ function ConfirmRemoveModal({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const expected = (member.full_name ?? member.email ?? '').trim()
+  const [typed, setTyped] = useState('')
+  const matches = typed.trim() === expected && expected.length > 0
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -514,18 +565,29 @@ function ConfirmRemoveModal({
         className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onCancel}
       />
-      <div className="glass-panel relative w-full max-w-[440px] p-7 kst-fade-in">
+      <div className="glass-panel relative w-full max-w-[460px] p-7 kst-fade-in">
         <h2 className="text-kst-white text-xl font-semibold mb-3">
           Remove team member?
         </h2>
-        <p className="text-kst-muted text-sm mb-6">
+        <p className="text-kst-muted text-sm mb-4">
           This will remove{' '}
-          <span className="text-kst-white">
-            {member.full_name ?? member.email}
-          </span>{' '}
-          from the team. Their profile row will be deleted; you may need to
-          delete the auth user separately in Supabase.
+          <span className="text-kst-white">{expected}</span> from the team.
+          Their profile row will be deleted; you may need to delete the auth
+          user separately in Supabase.
         </p>
+        <p className="text-kst-muted text-xs mb-2">
+          Type{' '}
+          <span className="text-kst-white font-medium">{expected}</span> to
+          confirm:
+        </p>
+        <input
+          type="text"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          autoFocus
+          placeholder={expected}
+          className="w-full h-11 px-4 mb-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white placeholder:text-kst-muted text-sm focus:outline-none focus:border-kst-error/60 focus:ring-2 focus:ring-kst-error/20 transition-colors"
+        />
         {error && <p className="text-kst-error text-xs mb-3">{error}</p>}
         <div className="flex justify-end gap-3">
           <button
@@ -538,7 +600,8 @@ function ConfirmRemoveModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-error text-kst-black font-semibold text-sm hover:bg-kst-error/90 transition-colors"
+            disabled={!matches}
+            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-error text-kst-black font-semibold text-sm hover:bg-kst-error/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Trash2 size={14} />
             Remove
