@@ -265,6 +265,11 @@ export function ContactsSection({
     setError(null)
     const isFirst = contacts.length === 0
 
+    if (!input.password || input.password.length < 8) {
+      throw new Error('Password must be at least 8 characters.')
+    }
+
+    // 1) Insert the contact row (no login yet)
     const { data: inserted, error: insErr } = await supabase
       .from('client_contacts')
       .insert({
@@ -285,29 +290,35 @@ export function ContactsSection({
 
     let next = inserted as ClientContact
 
-    if (input.send_invite) {
-      if (!input.password || input.password.length < 8) {
-        throw new Error(
-          'Password must be at least 8 characters when sending a login invite.'
-        )
-      }
+    // 2) Always create the auth login via /api/invite. If it fails, roll
+    //    back the contact row so the admin can retry with the same email.
+    try {
       const { userId } = await inviteUser({
         email: input.email.trim(),
         fullName: input.full_name.trim(),
         role: 'client',
         password: input.password,
       })
+
+      // 3) Mark the contact as having a login + link the user_id
       await supabase
         .from('client_contacts')
         .update({ has_login: true, user_id: userId })
         .eq('id', next.id)
       next = { ...next, has_login: true, user_id: userId }
+
+      // 4) If this is the first (and therefore primary) contact, also
+      //    sync clients.user_id so RLS for /my-progress works.
       if (next.is_primary) {
         await supabase
           .from('clients')
           .update({ user_id: userId })
           .eq('id', clientId)
       }
+    } catch (err) {
+      // Roll back the contact row
+      await supabase.from('client_contacts').delete().eq('id', next.id)
+      throw err
     }
 
     setContacts((prev) => [...prev, next])
@@ -543,8 +554,7 @@ interface AddContactInput {
   email: string
   phone: string
   role: ContactRole
-  send_invite: boolean
-  password?: string
+  password: string
 }
 
 function AddContactModal({
@@ -558,7 +568,6 @@ function AddContactModal({
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<ContactRole>('owner')
-  const [sendInvite, setSendInvite] = useState(false)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -578,7 +587,7 @@ function AddContactModal({
       setError('Name and email are required.')
       return
     }
-    if (sendInvite && password.length < 8) {
+    if (password.length < 8) {
       setError('Password must be at least 8 characters.')
       return
     }
@@ -589,8 +598,7 @@ function AddContactModal({
         email,
         phone,
         role,
-        send_invite: sendInvite,
-        password: sendInvite ? password : undefined,
+        password,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add contact.')
@@ -657,33 +665,20 @@ function AddContactModal({
             />
           </Field>
 
-          <label className="flex items-center gap-2 text-sm text-kst-white">
+          <Field label="Password">
             <input
-              type="checkbox"
-              checked={sendInvite}
-              onChange={(e) => setSendInvite(e.target.checked)}
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Min 8 characters"
+              autoComplete="new-password"
               disabled={loading}
-              className="w-4 h-4 rounded border-white/20 bg-kst-dark accent-kst-gold"
+              className={inputClass}
             />
-            Send login invite immediately
-          </label>
-
-          {sendInvite && (
-            <Field label="Password">
-              <input
-                type="text"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 8 characters"
-                autoComplete="new-password"
-                disabled={loading}
-                className={inputClass}
-              />
-              <span className="text-[11px] text-kst-muted mt-1">
-                You&apos;ll share this with them directly — no email is sent.
-              </span>
-            </Field>
-          )}
+            <span className="text-[11px] text-kst-muted mt-1">
+              You&apos;ll share these credentials with the contact directly.
+            </span>
+          </Field>
 
           {error && <p className="text-kst-error text-sm">{error}</p>}
 
