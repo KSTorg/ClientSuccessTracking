@@ -21,6 +21,7 @@ import {
   type ClientContact,
 } from '@/components/clients/contacts-section'
 import { StatusBadge } from '@/components/clients/status-badge'
+import type { Role } from '@/lib/supabase/get-user'
 import { cn, formatDate } from '@/lib/utils'
 import {
   CLIENT_STATUSES,
@@ -33,6 +34,7 @@ interface ClientDetailViewProps {
   client: ClientWithCsm
   csms: CsmOption[]
   contacts: ClientContact[]
+  currentUserRole: Role
 }
 
 const STATUS_DOT: Record<ClientStatus, string> = {
@@ -55,7 +57,9 @@ export function ClientDetailView({
   client,
   csms,
   contacts,
+  currentUserRole,
 }: ClientDetailViewProps) {
+  const isAdmin = currentUserRole === 'admin'
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -300,6 +304,7 @@ export function ClientDetailView({
         initialContacts={contacts}
         legacyContactName={client.contact_name}
         legacyContactEmail={client.contact_email}
+        currentUserRole={currentUserRole}
       />
 
       {/* Launch banner */}
@@ -390,52 +395,54 @@ export function ClientDetailView({
         )}
       </div>
 
-      {/* Danger zone */}
-      <div className="glass-panel-sm p-5 border border-kst-error/20">
-        <p className="text-kst-muted text-xs uppercase tracking-wider mb-3">
-          Danger Zone
-        </p>
-        {!confirmDelete ? (
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(true)}
-            className="inline-flex items-center gap-2 px-4 h-10 rounded-xl border border-kst-error/60 text-kst-error hover:bg-kst-error/10 transition-colors text-sm"
-          >
-            <Trash2 size={14} />
-            Delete Client
-          </button>
-        ) : (
-          <div>
-            <p className="text-kst-white text-sm mb-4">
-              Are you sure you want to delete{' '}
-              <span className="font-semibold">{client.company_name}</span>?
-              This will delete all their task progress and cannot be undone.
-            </p>
-            {deleteError && (
-              <p className="text-kst-error text-xs mb-3">{deleteError}</p>
-            )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                disabled={deleting}
-                className="px-4 h-10 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm disabled:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 px-4 h-10 rounded-xl bg-kst-error text-kst-black font-semibold text-sm hover:bg-kst-error/90 transition-colors disabled:opacity-60"
-              >
-                <Trash2 size={14} />
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
-              </button>
+      {/* Danger zone — admin only */}
+      {isAdmin && (
+        <div className="glass-panel-sm p-5 border border-kst-error/20">
+          <p className="text-kst-muted text-xs uppercase tracking-wider mb-3">
+            Danger Zone
+          </p>
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="inline-flex items-center gap-2 px-4 h-10 rounded-xl border border-kst-error/60 text-kst-error hover:bg-kst-error/10 transition-colors text-sm"
+            >
+              <Trash2 size={14} />
+              Delete Client
+            </button>
+          ) : (
+            <div>
+              <p className="text-kst-white text-sm mb-4">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold">{client.company_name}</span>?
+                This will delete all their task progress and cannot be undone.
+              </p>
+              {deleteError && (
+                <p className="text-kst-error text-xs mb-3">{deleteError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className="px-4 h-10 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-2 px-4 h-10 rounded-xl bg-kst-error text-kst-black font-semibold text-sm hover:bg-kst-error/90 transition-colors disabled:opacity-60"
+                >
+                  <Trash2 size={14} />
+                  {deleting ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

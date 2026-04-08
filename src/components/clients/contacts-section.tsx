@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { inviteUser } from '@/lib/supabase/invite'
+import type { Role } from '@/lib/supabase/get-user'
 import { cn } from '@/lib/utils'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ interface ContactsSectionProps {
   // For seeding the first contact from the legacy clients table fields
   legacyContactName: string | null
   legacyContactEmail: string | null
+  currentUserRole: Role
 }
 
 const ROLE_LABELS: Record<ContactRole, string> = {
@@ -95,9 +97,11 @@ export function ContactsSection({
   initialContacts,
   legacyContactName,
   legacyContactEmail,
+  currentUserRole,
 }: ContactsSectionProps) {
   const router = useRouter()
   const supabase = createClient()
+  const isAdmin = currentUserRole === 'admin'
 
   const [contacts, setContacts] = useState<ClientContact[]>(initialContacts)
   const [addOpen, setAddOpen] = useState(false)
@@ -389,6 +393,7 @@ export function ContactsSection({
                 <ContactRowMenu
                   contact={c}
                   busy={busyId === c.id}
+                  canRemove={isAdmin}
                   onSetPrimary={() => setPrimary(c)}
                   onSendInvite={() => setInvitePromptFor(c)}
                   onRemove={() => removeContact(c)}
@@ -435,12 +440,14 @@ function ContactRoleBadge({ role }: { role: ContactRole }) {
 function ContactRowMenu({
   contact,
   busy,
+  canRemove,
   onSetPrimary,
   onSendInvite,
   onRemove,
 }: {
   contact: ClientContact
   busy: boolean
+  canRemove: boolean
   onSetPrimary: () => void
   onSendInvite: () => void
   onRemove: () => void
@@ -484,16 +491,18 @@ function ContactRowMenu({
               Send Login Invite
             </MenuItem>
           )}
-          <MenuItem
-            tone="danger"
-            onClick={() => {
-              setOpen(false)
-              onRemove()
-            }}
-          >
-            <Trash2 size={13} />
-            Remove Contact
-          </MenuItem>
+          {canRemove && (
+            <MenuItem
+              tone="danger"
+              onClick={() => {
+                setOpen(false)
+                onRemove()
+              }}
+            >
+              <Trash2 size={13} />
+              Remove Contact
+            </MenuItem>
+          )}
         </div>
       )}
     </div>

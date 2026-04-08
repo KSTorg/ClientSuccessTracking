@@ -10,7 +10,7 @@ interface PageProps {
 }
 
 export default async function ClientDetailPage({ params }: PageProps) {
-  await requireTeamMember()
+  const { profile } = await requireTeamMember()
   const { id } = await params
 
   const supabase = await createClient()
@@ -30,11 +30,6 @@ export default async function ClientDetailPage({ params }: PageProps) {
       .order('created_at'),
   ])
 
-  console.log('[client detail] client query:', {
-    error: clientRes.error,
-    found: !!clientRes.data,
-  })
-
   if (clientRes.error || !clientRes.data) {
     notFound()
   }
@@ -50,6 +45,11 @@ export default async function ClientDetailPage({ params }: PageProps) {
   const client: ClientWithCsm = { ...raw, csm }
 
   return (
-    <ClientDetailView client={client} csms={csms} contacts={contacts} />
+    <ClientDetailView
+      client={client}
+      csms={csms}
+      contacts={contacts}
+      currentUserRole={profile!.role}
+    />
   )
 }
