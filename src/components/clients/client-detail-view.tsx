@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Trash2, ChevronDown, Edit3 } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Edit3, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SetupChecklist } from '@/components/SetupChecklist'
+import { StatusBadge } from '@/components/clients/status-badge'
 import { cn, formatDate } from '@/lib/utils'
 import {
   CLIENT_STATUSES,
@@ -19,11 +20,18 @@ interface ClientDetailViewProps {
   csms: CsmOption[]
 }
 
-const STATUS_TEXT: Record<ClientStatus, string> = {
-  onboarding: 'text-kst-gold',
-  launched: 'text-kst-success',
-  paused: 'text-kst-warning',
-  churned: 'text-kst-error',
+const STATUS_DOT: Record<ClientStatus, string> = {
+  onboarding: 'bg-kst-gold',
+  launched: 'bg-kst-success',
+  paused: 'bg-kst-warning',
+  churned: 'bg-kst-error',
+}
+
+const STATUS_LABEL: Record<ClientStatus, string> = {
+  onboarding: 'Onboarding',
+  launched: 'Launched',
+  paused: 'Paused',
+  churned: 'Churned',
 }
 
 type Tab = 'setup' | 'success'
@@ -113,9 +121,6 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
     router.refresh()
   }
 
-  const selectClass =
-    'h-10 px-3 pr-9 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors appearance-none'
-
   return (
     <div className="max-w-5xl">
       {/* Header */}
@@ -151,55 +156,23 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Status
             </p>
-            <div className="relative">
-              <select
-                value={status}
-                onChange={(e) =>
-                  handleStatusChange(e.target.value as ClientStatus)
-                }
-                disabled={savingField === 'status'}
-                className={cn(selectClass, STATUS_TEXT[status], 'font-medium')}
-              >
-                {CLIENT_STATUSES.map((s) => (
-                  <option
-                    key={s}
-                    value={s}
-                    className="text-kst-white bg-kst-dark"
-                  >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-kst-muted pointer-events-none"
-              />
-            </div>
+            <ClientStatusPicker
+              value={status}
+              disabled={savingField === 'status'}
+              onChange={handleStatusChange}
+            />
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Assigned CSM
             </p>
-            <div className="relative">
-              <select
-                value={csmId}
-                onChange={(e) => handleCsmChange(e.target.value)}
-                disabled={savingField === 'csm'}
-                className={selectClass}
-              >
-                <option value="">Unassigned</option>
-                {csms.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name ?? 'Unnamed'}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-kst-muted pointer-events-none"
-              />
-            </div>
+            <CsmPicker
+              value={csmId}
+              csms={csms}
+              disabled={savingField === 'csm'}
+              onChange={handleCsmChange}
+            />
           </div>
 
           <div>
@@ -374,6 +347,198 @@ function TabButton({
       )}
     >
       {children}
+    </button>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Pickers
+// ───────────────────────────────────────────────────────────────────────────
+
+function useClickOutside(
+  ref: React.RefObject<HTMLDivElement | null>,
+  open: boolean,
+  onClose: () => void
+) {
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose, ref])
+}
+
+function ClientStatusPicker({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: ClientStatus
+  disabled?: boolean
+  onChange: (next: ClientStatus) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, open, () => setOpen(false))
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center h-10 disabled:opacity-60"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <StatusBadge status={value} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute z-50 left-0 top-full mt-2 min-w-[200px] kst-dropdown p-1 kst-fade-in"
+        >
+          {CLIENT_STATUSES.map((s) => {
+            const active = s === value
+            return (
+              <button
+                key={s}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => {
+                  onChange(s)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+                  active && 'bg-kst-gold/10'
+                )}
+              >
+                <span className={cn('w-2.5 h-2.5 rounded-full', STATUS_DOT[s])} />
+                <span
+                  className={cn(
+                    'flex-1',
+                    active ? 'text-kst-white' : 'text-kst-muted'
+                  )}
+                >
+                  {STATUS_LABEL[s]}
+                </span>
+                {active && <Check size={14} className="text-kst-gold" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CsmPicker({
+  value,
+  csms,
+  disabled,
+  onChange,
+}: {
+  value: string
+  csms: CsmOption[]
+  disabled?: boolean
+  onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useClickOutside(ref, open, () => setOpen(false))
+
+  const selected = csms.find((c) => c.id === value) ?? null
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-2 h-10 px-4 rounded-full glass-panel-sm text-sm disabled:opacity-60 hover:bg-white/[0.04] transition-colors"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {selected ? (
+          <span className="text-kst-white">
+            {selected.full_name ?? 'Unnamed'}
+          </span>
+        ) : (
+          <span className="text-kst-muted">Unassigned</span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute z-50 left-0 top-full mt-2 min-w-[220px] max-h-72 overflow-y-auto kst-dropdown p-1 kst-fade-in"
+        >
+          <PickerOption
+            active={value === ''}
+            onClick={() => {
+              onChange('')
+              setOpen(false)
+            }}
+          >
+            <span className="text-kst-muted italic">Unassigned</span>
+          </PickerOption>
+          {csms.map((c) => {
+            const active = c.id === value
+            return (
+              <PickerOption
+                key={c.id}
+                active={active}
+                onClick={() => {
+                  onChange(c.id)
+                  setOpen(false)
+                }}
+              >
+                <span
+                  className={cn(active ? 'text-kst-white' : 'text-kst-muted')}
+                >
+                  {c.full_name ?? 'Unnamed'}
+                </span>
+              </PickerOption>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PickerOption({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={active}
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+        active && 'bg-kst-gold/10'
+      )}
+    >
+      <span className="flex-1">{children}</span>
+      {active && <Check size={14} className="text-kst-gold" />}
     </button>
   )
 }

@@ -1,6 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Check,
   ChevronDown,
@@ -62,23 +68,38 @@ interface SetupChecklistProps {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Helpers
+// Constants & Helpers
 // ───────────────────────────────────────────────────────────────────────────
 
-const TEAM_CYCLE: TaskStatus[] = [
+const TEAM_STATUSES: TaskStatus[] = [
   'not_started',
   'in_progress',
   'in_review',
   'completed',
 ]
-const CLIENT_CYCLE: TaskStatus[] = ['not_started', 'in_progress', 'completed']
+const CLIENT_STATUSES: TaskStatus[] = [
+  'not_started',
+  'in_progress',
+  'completed',
+]
 
-function nextStatus(current: TaskStatus, isTeamView: boolean): TaskStatus {
-  const cycle = isTeamView ? TEAM_CYCLE : CLIENT_CYCLE
-  const idx = cycle.indexOf(current)
-  // If current is in_review and we're in client view, fall back to completed
-  if (idx === -1) return cycle[0]!
-  return cycle[(idx + 1) % cycle.length]!
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  in_review: 'In Review',
+  completed: 'Completed',
+}
+
+function isRealUrl(url: string | null | undefined): boolean {
+  if (!url) return false
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('#')) return false
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('/')
+  )
 }
 
 function titleCase(s: string) {
@@ -88,14 +109,12 @@ function titleCase(s: string) {
     .trim()
 }
 
-/** Strip a known group prefix off a subtask title for display. */
 function displaySubtaskTitle(title: string) {
   const idx = title.indexOf(':')
   if (idx > 0 && idx < 40) return title.slice(idx + 1).trim()
   return title
 }
 
-/** Group label for a subtask, based on title prefix or keyword fallback. */
 function groupForSubtask(title: string): string {
   const idx = title.indexOf(':')
   if (idx > 0 && idx < 40) return title.slice(0, idx).trim()
@@ -154,7 +173,6 @@ const GROUP_ORDER = [
   'Other',
 ]
 
-/** Effective status of a parent (has_subtasks) row, computed from its kids. */
 function effectiveParentStatus(
   parent: ClientTaskJoined,
   subs: ClientTaskJoined[]
@@ -185,7 +203,7 @@ export function SetupChecklist({
   const [openStages, setOpenStages] = useState<Record<string, boolean>>({})
   const [openParents, setOpenParents] = useState<Record<string, boolean>>({})
 
-  // Fetch checklist + current user
+  // Fetch
   useEffect(() => {
     let cancelled = false
 
@@ -218,11 +236,12 @@ export function SetupChecklist({
         return
       }
 
-      // Supabase types nested embeds as arrays; normalize.
       const normalized: ClientTaskJoined[] = (data ?? []).map((r) => {
         const raw = r as unknown as Record<string, unknown>
         const taskRaw = (Array.isArray(raw.task) ? raw.task[0] : raw.task) as
-          | (Omit<TaskRow, 'stage'> & { stage: StageRow | StageRow[] | null })
+          | (Omit<TaskRow, 'stage'> & {
+              stage: StageRow | StageRow[] | null
+            })
           | null
         const stage = taskRaw
           ? Array.isArray(taskRaw.stage)
@@ -270,7 +289,6 @@ export function SetupChecklist({
         byStageId.get(s.id)!.topLevel.push(r)
       }
     }
-    // Sort top-level tasks by order_index
     for (const stage of byStageId.values()) {
       stage.topLevel.sort(
         (a, b) => (a.task?.order_index ?? 0) - (b.task?.order_index ?? 0)
@@ -281,7 +299,7 @@ export function SetupChecklist({
     )
   }, [rows])
 
-  // Subtasks indexed by parent task_id (the master tasks.id)
+  // Subtasks indexed by parent task_id
   const subtasksByParent = useMemo(() => {
     const m = new Map<string, ClientTaskJoined[]>()
     for (const r of rows) {
@@ -298,11 +316,10 @@ export function SetupChecklist({
     return m
   }, [rows])
 
-  // Default stage open-state: open stage 1, plus any stage with incomplete top-level tasks
+  // Default stage open-state (set once after first load)
   useEffect(() => {
     if (loading || stages.length === 0) return
     setOpenStages((prev) => {
-      // Only initialize once per load
       if (Object.keys(prev).length > 0) return prev
       const next: Record<string, boolean> = {}
       stages.forEach((s, i) => {
@@ -318,7 +335,7 @@ export function SetupChecklist({
     })
   }, [loading, stages, subtasksByParent])
 
-  // Overall progress: count only top-level (non-subtask) items
+  // Overall progress: top-level only
   const { totalTop, completedTop } = useMemo(() => {
     let total = 0
     let done = 0
@@ -337,18 +354,16 @@ export function SetupChecklist({
   const overallPct =
     totalTop > 0 ? Math.round((completedTop / totalTop) * 100) : 0
 
-  // ───── Mutation ────────────────────────────────────────────────────────
-  const cycleTaskStatus = useCallback(
-    async (clientTaskId: string) => {
+  // Status mutation (now takes an explicit target status)
+  const updateTaskStatus = useCallback(
+    async (clientTaskId: string, next: TaskStatus) => {
       const target = rows.find((r) => r.id === clientTaskId)
-      if (!target) return
-      if (target.task?.has_subtasks) return // parent: auto-calculated
+      if (!target || target.task?.has_subtasks) return
+      if (target.status === next) return
 
-      const next = nextStatus(target.status, isTeamView)
       const completedAt =
         next === 'completed' ? new Date().toISOString() : null
 
-      // Optimistic
       const prevStatus = target.status
       const prevCompletedAt = target.completed_at
       setRows((prev) =>
@@ -379,7 +394,7 @@ export function SetupChecklist({
         setToast(`Couldn't update task: ${error.message}`)
       }
     },
-    [rows, isTeamView, supabase, currentUserId]
+    [rows, supabase, currentUserId]
   )
 
   // ───── Render ─────────────────────────────────────────────────────────
@@ -407,7 +422,6 @@ export function SetupChecklist({
 
   return (
     <div>
-      {/* Toast */}
       {toast && (
         <div className="mb-4 glass-panel-sm px-4 py-3 text-sm text-kst-error">
           {toast}
@@ -447,7 +461,10 @@ export function SetupChecklist({
           }).length
 
           return (
-            <div key={stage.stage.id} className="glass-panel-sm overflow-hidden">
+            <div
+              key={stage.stage.id}
+              className="glass-panel-sm overflow-visible"
+            >
               <button
                 type="button"
                 onClick={() =>
@@ -492,7 +509,7 @@ export function SetupChecklist({
                           : []
                       }
                       isTeamView={isTeamView}
-                      cycleStatus={cycleTaskStatus}
+                      onSetStatus={updateTaskStatus}
                       isParentExpanded={
                         openParents[ct.id] ?? !!ct.task?.has_subtasks
                       }
@@ -518,14 +535,14 @@ export function SetupChecklist({
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Sub-components
+// Top-level task row
 // ───────────────────────────────────────────────────────────────────────────
 
 interface TopLevelTaskProps {
   ct: ClientTaskJoined
   subs: ClientTaskJoined[]
   isTeamView: boolean
-  cycleStatus: (id: string) => void
+  onSetStatus: (id: string, next: TaskStatus) => void
   isParentExpanded: boolean
   toggleParent: () => void
 }
@@ -534,7 +551,7 @@ function TopLevelTask({
   ct,
   subs,
   isTeamView,
-  cycleStatus,
+  onSetStatus,
   isParentExpanded,
   toggleParent,
 }: TopLevelTaskProps) {
@@ -542,7 +559,7 @@ function TopLevelTask({
   const effective = hasSubs ? effectiveParentStatus(ct, subs) : ct.status
   const subsDone = subs.filter((s) => s.status === 'completed').length
 
-  // Group subtasks for display
+  // Group subtasks
   const grouped = useMemo(() => {
     const m = new Map<string, ClientTaskJoined[]>()
     for (const s of subs) {
@@ -555,15 +572,50 @@ function TopLevelTask({
     )
   }, [subs])
 
+  // Per-group open state (smart auto-expand on mount only)
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>(() => {
+    // Recompute the grouping inside the initializer to avoid depending on
+    // a memo that hasn't been set yet.
+    const m = new Map<string, ClientTaskJoined[]>()
+    for (const s of subs) {
+      const g = groupForSubtask(s.task?.title ?? '')
+      if (!m.has(g)) m.set(g, [])
+      m.get(g)!.push(s)
+    }
+    const sorted = Array.from(m.entries()).sort(
+      (a, b) => GROUP_ORDER.indexOf(a[0]) - GROUP_ORDER.indexOf(b[0])
+    )
+    const result: Record<string, boolean> = {}
+    let firstIncompleteFound = false
+    for (const [name, items] of sorted) {
+      const allDone =
+        items.length > 0 && items.every((s) => s.status === 'completed')
+      if (allDone) {
+        result[name] = false
+      } else if (!firstIncompleteFound) {
+        result[name] = true
+        firstIncompleteFound = true
+      } else {
+        result[name] = false
+      }
+    }
+    return result
+  })
+
   return (
     <div>
       <div className="group flex items-start gap-3 px-3 py-3 rounded-lg hover:bg-white/[0.03] transition-colors">
-        <StatusIndicator
-          status={effective}
-          disabled={hasSubs}
-          isTeamView={isTeamView}
-          onClick={() => !hasSubs && cycleStatus(ct.id)}
-        />
+        {hasSubs ? (
+          <div className="mt-0.5">
+            <StatusGlyph status={effective} />
+          </div>
+        ) : (
+          <StatusPicker
+            status={ct.status}
+            isTeamView={isTeamView}
+            onChange={(next) => onSetStatus(ct.id, next)}
+          />
+        )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -575,7 +627,8 @@ function TopLevelTask({
                 effective === 'completed'
                   ? 'text-kst-muted line-through'
                   : 'text-kst-white',
-                hasSubs && 'hover:text-kst-gold transition-colors cursor-pointer'
+                hasSubs &&
+                  'hover:text-kst-gold transition-colors cursor-pointer'
               )}
             >
               {ct.task?.title ?? 'Untitled task'}
@@ -607,21 +660,51 @@ function TopLevelTask({
 
       {hasSubs && isParentExpanded && (
         <div className="ml-9 mr-2 mb-2 border-l border-white/[0.06] pl-4">
-          {grouped.map(([groupName, items]) => (
-            <div key={groupName} className="mt-3 first:mt-1">
-              <p className="text-[10px] uppercase tracking-wider text-kst-muted/70 px-2 mb-1">
-                {groupName}
-              </p>
-              {items.map((s) => (
-                <SubtaskRow
-                  key={s.id}
-                  ct={s}
-                  isTeamView={isTeamView}
-                  cycleStatus={cycleStatus}
-                />
-              ))}
-            </div>
-          ))}
+          {grouped.map(([groupName, items]) => {
+            const open = groupOpen[groupName] ?? false
+            const groupDone = items.filter(
+              (i) => i.status === 'completed'
+            ).length
+            return (
+              <div key={groupName} className="mt-3 first:mt-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGroupOpen((p) => ({ ...p, [groupName]: !open }))
+                  }
+                  className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-white/[0.03] transition-colors"
+                >
+                  <span className="text-[10px] uppercase tracking-wider text-kst-muted/80 font-semibold">
+                    {groupName}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-kst-muted/60">
+                      {groupDone}/{items.length}
+                    </span>
+                    <ChevronDown
+                      size={12}
+                      className={cn(
+                        'text-kst-muted transition-transform',
+                        open && 'rotate-180'
+                      )}
+                    />
+                  </div>
+                </button>
+                {open && (
+                  <div className="kst-fade-in">
+                    {items.map((s) => (
+                      <SubtaskRow
+                        key={s.id}
+                        ct={s}
+                        isTeamView={isTeamView}
+                        onSetStatus={onSetStatus}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -631,18 +714,18 @@ function TopLevelTask({
 function SubtaskRow({
   ct,
   isTeamView,
-  cycleStatus,
+  onSetStatus,
 }: {
   ct: ClientTaskJoined
   isTeamView: boolean
-  cycleStatus: (id: string) => void
+  onSetStatus: (id: string, next: TaskStatus) => void
 }) {
   return (
     <div className="group flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors">
-      <StatusIndicator
+      <StatusPicker
         status={ct.status}
         isTeamView={isTeamView}
-        onClick={() => cycleStatus(ct.id)}
+        onChange={(next) => onSetStatus(ct.id, next)}
       />
       <div className="flex-1 min-w-0">
         <p
@@ -662,70 +745,141 @@ function SubtaskRow({
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Bits
+// Status picker (dropdown)
 // ───────────────────────────────────────────────────────────────────────────
 
-function StatusIndicator({
+function StatusPicker({
   status,
-  onClick,
-  disabled,
   isTeamView,
+  onChange,
 }: {
   status: TaskStatus
-  onClick?: () => void
-  disabled?: boolean
-  isTeamView?: boolean
+  isTeamView: boolean
+  onChange: (next: TaskStatus) => void
 }) {
-  // Hide in_review entirely from client view (it should never reach a client
-  // anyway, but be safe)
+  const [open, setOpen] = useState(false)
+  const [flipUp, setFlipUp] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Click outside / escape
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // Smart positioning: flip up if too close to bottom of viewport
+  useEffect(() => {
+    if (!open || !wrapRef.current) return
+    const rect = wrapRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    setFlipUp(spaceBelow < 180)
+  }, [open])
+
+  // Hide in_review from client view
   const display: TaskStatus =
     !isTeamView && status === 'in_review' ? 'in_progress' : status
 
-  const base =
-    'mt-0.5 w-6 h-6 rounded-full flex items-center justify-center transition-all shrink-0'
-
-  const inner = (() => {
-    switch (display) {
-      case 'completed':
-        return (
-          <div className="w-6 h-6 rounded-full bg-kst-gold flex items-center justify-center shadow-[0_0_12px_rgba(201,168,76,0.4)]">
-            <Check size={14} className="text-kst-black" strokeWidth={3} />
-          </div>
-        )
-      case 'in_review':
-        return (
-          <div className="w-6 h-6 rounded-full border-2 border-kst-gold flex items-center justify-center bg-kst-gold/10">
-            <Clock size={11} className="text-kst-gold" />
-          </div>
-        )
-      case 'in_progress':
-        return (
-          <div className="w-6 h-6 rounded-full border-2 border-kst-gold flex items-center justify-center">
-            <span className="w-2 h-2 rounded-full bg-kst-gold animate-pulse" />
-          </div>
-        )
-      default:
-        return (
-          <div className="w-6 h-6 rounded-full border-2 border-white/20 group-hover:border-white/40 transition-colors" />
-        )
-    }
-  })()
-
-  if (disabled) {
-    return <div className={cn(base, 'opacity-90')}>{inner}</div>
-  }
+  const options: TaskStatus[] = isTeamView ? TEAM_STATUSES : CLIENT_STATUSES
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(base, 'cursor-pointer hover:scale-110')}
-      aria-label="Toggle task status"
-    >
-      {inner}
-    </button>
+    <div ref={wrapRef} className="relative mt-0.5 shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="block hover:scale-110 transition-transform"
+        aria-label="Change task status"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <StatusGlyph status={display} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className={cn(
+            'absolute z-50 left-0 min-w-[180px] kst-dropdown p-1 kst-fade-in',
+            flipUp ? 'bottom-full mb-2' : 'top-full mt-2'
+          )}
+        >
+          {options.map((opt) => {
+            const active = opt === status
+            return (
+              <button
+                key={opt}
+                type="button"
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => {
+                  onChange(opt)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm hover:bg-white/[0.06] transition-colors',
+                  active && 'bg-kst-gold/10'
+                )}
+              >
+                <StatusGlyph status={opt} />
+                <span
+                  className={cn(
+                    'flex-1',
+                    active ? 'text-kst-white' : 'text-kst-muted'
+                  )}
+                >
+                  {STATUS_LABELS[opt]}
+                </span>
+                {active && <Check size={14} className="text-kst-gold" />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
+
+function StatusGlyph({ status }: { status: TaskStatus }) {
+  switch (status) {
+    case 'completed':
+      return (
+        <div className="w-6 h-6 rounded-full bg-kst-gold flex items-center justify-center shadow-[0_0_12px_rgba(201,168,76,0.4)]">
+          <Check size={14} className="text-kst-black" strokeWidth={3} />
+        </div>
+      )
+    case 'in_review':
+      return (
+        <div className="w-6 h-6 rounded-full border-2 border-kst-gold flex items-center justify-center bg-kst-gold/10">
+          <Clock size={11} className="text-kst-gold" />
+        </div>
+      )
+    case 'in_progress':
+      return (
+        <div className="w-6 h-6 rounded-full border-2 border-kst-gold flex items-center justify-center">
+          <span className="w-2 h-2 rounded-full bg-kst-gold animate-pulse" />
+        </div>
+      )
+    default:
+      return (
+        <div className="w-6 h-6 rounded-full border-2 border-white/20 group-hover:border-white/40 transition-colors" />
+      )
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Task links
+// ───────────────────────────────────────────────────────────────────────────
 
 function TaskLinks({
   task,
@@ -735,34 +889,38 @@ function TaskLinks({
   small?: boolean
 }) {
   if (!task) return null
-  const extras = task.extra_links ?? null
-  const hasAny =
-    !!task.training_url || !!task.doc_url || (extras && Object.keys(extras).length > 0)
-  if (!hasAny) return null
+
+  const validExtras = task.extra_links
+    ? Object.entries(task.extra_links).filter(([, url]) => isRealUrl(url))
+    : []
+
+  const hasTraining = isRealUrl(task.training_url)
+  const hasDoc = isRealUrl(task.doc_url)
+
+  if (!hasTraining && !hasDoc && validExtras.length === 0) return null
 
   const sizeCls = small ? 'text-[10px] px-2 py-1' : 'text-xs px-2.5 py-1'
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap justify-end">
-      {task.training_url && (
-        <LinkButton href={task.training_url} className={sizeCls}>
+      {hasTraining && (
+        <LinkButton href={task.training_url!} className={sizeCls}>
           <PlayCircle size={small ? 11 : 12} />
           Training
         </LinkButton>
       )}
-      {task.doc_url && (
-        <LinkButton href={task.doc_url} className={sizeCls}>
+      {hasDoc && (
+        <LinkButton href={task.doc_url!} className={sizeCls}>
           <FileText size={small ? 11 : 12} />
           Doc
         </LinkButton>
       )}
-      {extras &&
-        Object.entries(extras).map(([key, url]) => (
-          <LinkButton key={key} href={url} className={sizeCls}>
-            <ExternalLink size={small ? 11 : 12} />
-            {titleCase(key)}
-          </LinkButton>
-        ))}
+      {validExtras.map(([key, url]) => (
+        <LinkButton key={key} href={url} className={sizeCls}>
+          <ExternalLink size={small ? 11 : 12} />
+          {titleCase(key)}
+        </LinkButton>
+      ))}
     </div>
   )
 }
