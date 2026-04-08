@@ -898,7 +898,7 @@ function TopLevelTask({
       <div
         className={cn(
           'group grid items-start gap-x-3 gap-y-2 md:gap-y-0 px-3 py-3 rounded-lg hover:bg-white/[0.03] transition-colors',
-          'grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_70px_160px_140px]',
+          'grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_70px_160px_160px]',
           hasSubs && 'cursor-pointer'
         )}
         onClick={hasSubs ? toggleParent : undefined}
@@ -933,12 +933,12 @@ function TopLevelTask({
           )}
         </div>
 
-        {/* Col 2 — title + description */}
+        {/* Col 2 — title + description (wrap freely, no truncation) */}
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-start gap-2 flex-wrap">
             <span
               className={cn(
-                'text-sm truncate',
+                'text-sm break-words',
                 effective === 'completed'
                   ? 'text-kst-muted line-through'
                   : 'text-kst-white',
@@ -948,7 +948,7 @@ function TopLevelTask({
               {ct.task?.title ?? 'Untitled task'}
             </span>
             {hasSubs && (
-              <span className="text-kst-muted text-xs shrink-0">
+              <span className="text-kst-muted text-xs shrink-0 mt-0.5">
                 ({subsDone}/{subs.length})
               </span>
             )}
@@ -956,14 +956,14 @@ function TopLevelTask({
               <ChevronDown
                 size={14}
                 className={cn(
-                  'text-kst-muted transition-transform ml-auto shrink-0',
+                  'text-kst-muted transition-transform ml-auto shrink-0 mt-1',
                   isParentExpanded && 'rotate-180'
                 )}
               />
             )}
           </div>
           {ct.task?.description && (
-            <p className="text-kst-muted text-xs mt-0.5 truncate">
+            <p className="text-kst-muted text-xs mt-0.5 break-words">
               {ct.task.description}
             </p>
           )}
@@ -971,7 +971,8 @@ function TopLevelTask({
 
         {/* Row 2 on mobile, cols 3/4/5 on md+ via display: contents */}
         <div className="col-span-2 flex items-center gap-3 flex-wrap md:contents">
-          {/* Col 3 — due date (right-aligned) */}
+          {/* Col 3 — due date (right-aligned).  NO overflow-hidden here,
+              otherwise the date picker popover gets clipped when it opens. */}
           <div
             className="md:flex md:justify-end min-w-0"
             onClick={(e) => e.stopPropagation()}
@@ -988,15 +989,16 @@ function TopLevelTask({
 
           {/* Col 4 — links (left-aligned) */}
           <div
-            className="min-w-0 overflow-hidden"
+            className="min-w-0"
             onClick={(e) => e.stopPropagation()}
           >
             {!hasSubs && !hideLinks && <TaskLinks task={ct.task} />}
           </div>
 
-          {/* Col 5 — assignee (right-aligned) */}
+          {/* Col 5 — assignee (right-aligned). NO overflow-hidden — the
+              reassign dropdown needs to render outside this box. */}
           <div
-            className="md:flex md:justify-end min-w-0 overflow-hidden"
+            className="md:flex md:justify-end min-w-0"
             onClick={(e) => e.stopPropagation()}
           >
             {!hasSubs &&
@@ -1090,7 +1092,7 @@ function SubtaskRow({
     <div
       className={cn(
         'group grid items-start gap-x-3 gap-y-1.5 md:gap-y-0 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors',
-        'grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_70px_160px_140px]'
+        'grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_70px_160px_160px]'
       )}
     >
       {/* Col 1 — status */}
@@ -1106,11 +1108,11 @@ function SubtaskRow({
         )}
       </div>
 
-      {/* Col 2 — title */}
+      {/* Col 2 — title (wrap freely) */}
       <div className="min-w-0">
         <p
           className={cn(
-            'text-sm truncate',
+            'text-sm break-words',
             ct.status === 'completed'
               ? 'text-kst-muted line-through'
               : 'text-kst-white'
@@ -1134,12 +1136,12 @@ function SubtaskRow({
         </div>
 
         {/* Col 4 — links */}
-        <div className="min-w-0 overflow-hidden">
+        <div className="min-w-0">
           {!hideLinks && <TaskLinks task={ct.task} small />}
         </div>
 
         {/* Col 5 — assignee */}
-        <div className="md:flex md:justify-end min-w-0 overflow-hidden">
+        <div className="md:flex md:justify-end min-w-0">
           {isTeamView ? (
             <AssigneePicker
               assigneeId={ct.assigned_to}

@@ -152,22 +152,21 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
-                  <th className="px-4 py-3 font-medium">Company</th>
-                  <th className="px-4 py-3 font-medium w-[140px]">Contact</th>
-                  <th className="px-4 py-3 font-medium w-[200px] hidden xl:table-cell">
-                    Email
+                  <th className="px-3 py-3 font-medium min-w-[150px]">
+                    Company
                   </th>
-                  <th className="px-4 py-3 font-medium w-[100px]">Status</th>
-                  <th className="px-4 py-3 font-medium w-[90px] whitespace-nowrap">
+                  <th className="px-3 py-3 font-medium w-[140px]">Contact</th>
+                  <th className="px-3 py-3 font-medium w-[110px]">Status</th>
+                  <th className="px-3 py-3 font-medium w-[80px] whitespace-nowrap">
                     Program
                   </th>
-                  <th className="px-4 py-3 font-medium w-[100px] whitespace-nowrap hidden lg:table-cell">
+                  <th className="px-3 py-3 font-medium w-[120px] whitespace-nowrap hidden lg:table-cell">
                     CSM
                   </th>
-                  <th className="px-4 py-3 font-medium w-[90px] hidden lg:table-cell">
+                  <th className="px-3 py-3 font-medium w-[100px] whitespace-nowrap hidden lg:table-cell">
                     Joined
                   </th>
-                  <th className="px-4 py-3 font-medium w-[120px]">Progress</th>
+                  <th className="px-3 py-3 font-medium w-[100px]">Progress</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,7 +183,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                         window.location.href = `/clients/${c.id}`
                       }}
                     >
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-4">
                         <Link
                           href={`/clients/${c.id}`}
                           className="block text-kst-white font-medium hover:text-kst-gold transition-colors truncate"
@@ -193,19 +192,16 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                           {c.company_name}
                         </Link>
                       </td>
-                      <td className="px-4 py-4 text-kst-white truncate">
+                      <td className="px-3 py-4 text-kst-white truncate">
                         {c.contact_name}
                       </td>
-                      <td className="px-4 py-4 text-kst-muted truncate hidden xl:table-cell">
-                        {c.contact_email}
-                      </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-4">
                         <StatusBadge status={c.status} />
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-4">
                         <ProgramBadge program={c.program} short />
                       </td>
-                      <td className="px-4 py-4 truncate hidden lg:table-cell">
+                      <td className="px-3 py-4 truncate hidden lg:table-cell">
                         {c.csm?.full_name ? (
                           <span className="text-kst-white">
                             {c.csm.full_name}
@@ -214,10 +210,10 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                           <span className="text-kst-muted">Unassigned</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-kst-muted hidden lg:table-cell whitespace-nowrap">
+                      <td className="px-3 py-4 text-kst-muted hidden lg:table-cell whitespace-nowrap">
                         {formatDate(c.joined_date ?? c.created_at)}
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                             <div
@@ -236,7 +232,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                 {filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={7}
                       className="px-5 py-10 text-center text-kst-muted text-sm"
                     >
                       No clients match your filters.
