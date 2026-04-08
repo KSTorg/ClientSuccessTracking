@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Trash2, ChevronDown, Edit3 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { SetupChecklist } from '@/components/SetupChecklist'
 import { cn, formatDate } from '@/lib/utils'
 import {
   CLIENT_STATUSES,
@@ -243,11 +244,17 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
         </TabButton>
       </div>
 
-      <div className="glass-panel p-8 mb-6">
+      <div className="mb-6">
         {activeTab === 'setup' ? (
-          <p className="text-kst-muted text-sm">Checklist coming in Phase 3</p>
+          <SetupChecklist
+            clientId={client.id}
+            isTeamView
+            clientName={client.company_name}
+          />
         ) : (
-          <p className="text-kst-muted text-sm">Coming in Phase 5</p>
+          <div className="glass-panel p-8">
+            <p className="text-kst-muted text-sm">Coming in Phase 5</p>
+          </div>
         )}
       </div>
 
