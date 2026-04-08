@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { inviteUser } from '@/lib/supabase/invite'
 import { cn } from '@/lib/utils'
 import type { CsmOption } from '@/lib/types'
 
@@ -17,6 +18,7 @@ interface FieldErrors {
   company_name?: string
   contact_name?: string
   contact_email?: string
+  password?: string
 }
 
 const inputClass =
@@ -33,6 +35,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   const [joinedDate, setJoinedDate] = useState(today)
   const [csmId, setCsmId] = useState<string>('')
   const [notes, setNotes] = useState('')
+  const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -46,6 +49,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       setJoinedDate(today)
       setCsmId('')
       setNotes('')
+      setPassword('')
       setFieldErrors({})
       setSubmitError(null)
       setLoading(false)
@@ -72,6 +76,8 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
     if (!companyName.trim()) errs.company_name = 'Company name is required.'
     if (!contactName.trim()) errs.contact_name = 'Contact name is required.'
     if (!contactEmail.trim()) errs.contact_email = 'Contact email is required.'
+    if (password.length < 8)
+      errs.password = 'Password must be at least 8 characters.'
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs)
       return
@@ -79,20 +85,80 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
     setFieldErrors({})
 
     setLoading(true)
-    const { error } = await supabase.from('clients').insert({
-      company_name: companyName.trim(),
-      contact_name: contactName.trim(),
-      contact_email: contactEmail.trim(),
-      joined_date: joinedDate || null,
-      assigned_csm: csmId || null,
-      notes: notes.trim() || null,
-      status: 'onboarding',
-    })
 
-    if (error) {
-      setSubmitError(error.message)
+    // 1) Insert the client row and grab its id
+    const { data: clientRow, error: insertErr } = await supabase
+      .from('clients')
+      .insert({
+        company_name: companyName.trim(),
+        contact_name: contactName.trim(),
+        contact_email: contactEmail.trim(),
+        joined_date: joinedDate || null,
+        assigned_csm: csmId || null,
+        notes: notes.trim() || null,
+        status: 'onboarding',
+      })
+      .select('id')
+      .single()
+
+    if (insertErr || !clientRow) {
+      setSubmitError(insertErr?.message ?? 'Could not create client.')
       setLoading(false)
       return
+    }
+
+    const clientId = (clientRow as { id: string }).id
+
+    // 2) Create the client's auth user + profile via the admin route
+    let newUserId: string
+    try {
+      const res = await inviteUser({
+        email: contactEmail.trim(),
+        fullName: contactName.trim(),
+        role: 'client',
+        password,
+      })
+      newUserId = res.userId
+    } catch (err) {
+      // Roll back the client row so the admin can retry cleanly
+      await supabase.from('clients').delete().eq('id', clientId)
+      setSubmitError(
+        err instanceof Error ? err.message : 'Could not create login.'
+      )
+      setLoading(false)
+      return
+    }
+
+    // 3) Link the new user to the client (so RLS on /my-progress works)
+    const { error: linkErr } = await supabase
+      .from('clients')
+      .update({ user_id: newUserId })
+      .eq('id', clientId)
+    if (linkErr) {
+      setSubmitError(`Client created but user link failed: ${linkErr.message}`)
+      setLoading(false)
+      return
+    }
+
+    // 4) Create the primary contact row with has_login + user_id set
+    const { error: contactErr } = await supabase
+      .from('client_contacts')
+      .insert({
+        client_id: clientId,
+        full_name: contactName.trim(),
+        email: contactEmail.trim(),
+        role: 'owner',
+        is_primary: true,
+        has_login: true,
+        user_id: newUserId,
+      })
+    if (contactErr) {
+      // Not fatal — the client + login still work; surface a warning but
+      // let the modal close so the page refreshes.
+      console.warn(
+        '[add client] primary contact insert failed:',
+        contactErr.message
+      )
     }
 
     setLoading(false)
@@ -204,6 +270,21 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
               placeholder="Optional context for the team..."
               className={cn(inputClass, 'h-auto py-3 resize-none')}
             />
+          </Field>
+
+          <Field label="Password" error={fieldErrors.password}>
+            <input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              placeholder="Min 8 characters"
+              autoComplete="new-password"
+              className={inputClass}
+            />
+            <span className="text-[11px] text-kst-muted mt-1">
+              You&apos;ll share these credentials with the client directly.
+            </span>
           </Field>
 
           {submitError && (
