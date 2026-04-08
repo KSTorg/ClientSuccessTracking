@@ -803,19 +803,17 @@ function TopLevelTask({
     )
   }, [subs])
 
-  // Accelerator gating for client view:
-  //  - if the task is assigned to a team member, clients see it as read-only
-  //    (show the glyph but don't let them cycle it)
-  //  - hide training/doc links when client_facing_accelerator === false
+  // Accelerator gating for client view: assigned-to-team tasks are read-only
   const isTeamOwnedForClient =
     !isTeamView &&
     program === 'accelerator' &&
     !hasSubs &&
     ct.assigned_to !== null
-  const hideLinksForClient =
-    !isTeamView &&
-    program === 'accelerator' &&
-    ct.task?.client_facing_accelerator === false
+
+  // Training / Doc / extra links only show on client tasks (assigned_to is
+  // null). Team-owned tasks hide them in every view, including the team
+  // dashboard, since the links are meant to guide the client, not the team.
+  const hideLinks = ct.assigned_to !== null
 
   return (
     <div>
@@ -891,7 +889,7 @@ function TopLevelTask({
           )}
         </div>
 
-        {!hideLinksForClient && <TaskLinks task={ct.task} />}
+        {!hideLinks && <TaskLinks task={ct.task} />}
 
         {/* Assignee display — team view shows the reassign picker, client
             view shows the assignee's first name when a team member owns the
@@ -972,10 +970,8 @@ function SubtaskRow({
 }) {
   const isTeamOwnedForClient =
     !isTeamView && program === 'accelerator' && ct.assigned_to !== null
-  const hideLinksForClient =
-    !isTeamView &&
-    program === 'accelerator' &&
-    ct.task?.client_facing_accelerator === false
+  // Links only render on client tasks (null assignee), regardless of view.
+  const hideLinks = ct.assigned_to !== null
 
   return (
     <div className="group flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors">
@@ -1002,7 +998,7 @@ function SubtaskRow({
           {displaySubtaskTitle(ct.task?.title ?? '')}
         </p>
       </div>
-      {!hideLinksForClient && <TaskLinks task={ct.task} small />}
+      {!hideLinks && <TaskLinks task={ct.task} small />}
       {isTeamView ? (
         <AssigneePicker
           assigneeId={ct.assigned_to}

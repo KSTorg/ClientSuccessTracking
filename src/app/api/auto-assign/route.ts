@@ -136,8 +136,6 @@ export async function POST(request: NextRequest) {
     } | null
   } | null
   const clientTeam = clientRow?.client_team ?? null
-  // Prefer the new client_team.csm, fall back to the legacy assigned_csm
-  const clientCsmId = clientTeam?.csm ?? clientRow?.assigned_csm ?? null
 
   // Build a global count map: user_id -> number of client_tasks assigned
   const counts = new Map<string, number>()
@@ -175,8 +173,9 @@ export async function POST(request: NextRequest) {
       updates.push({ id: t.id, assigned_to: null })
     }
   } else {
-    // Accelerator: honor the client_team slot first; fall back to
-    // load-balanced specialty search; final fallback is the client's CSM.
+    // Accelerator: only tasks with a default_specialty get a team
+    // assignee. Tasks without a default_specialty are client tasks and
+    // stay NULL — the CSM is never auto-assigned as a fallback.
     for (const t of tasks) {
       const spec = t.task?.default_specialty ?? null
       let assigneeId: string | null = null
@@ -194,19 +193,11 @@ export async function POST(request: NextRequest) {
           if (picked) {
             assigneeId = picked.id
             counts.set(picked.id, (counts.get(picked.id) ?? 0) + 1)
-          } else if (clientCsmId) {
-            // 3) No specialist anywhere — fall back to the client's CSM
-            assigneeId = clientCsmId
-            counts.set(clientCsmId, (counts.get(clientCsmId) ?? 0) + 1)
           }
-        }
-      } else {
-        // No specialty on the task → assign to the client's CSM
-        if (clientCsmId) {
-          assigneeId = clientCsmId
-          counts.set(clientCsmId, (counts.get(clientCsmId) ?? 0) + 1)
+          // 3) No specialist anywhere → leave as a client task (null).
         }
       }
+      // No specialty on the task → client task (null).
 
       updates.push({ id: t.id, assigned_to: assigneeId })
     }
