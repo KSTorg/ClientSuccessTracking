@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
-  Calendar,
   Check,
   CheckCircle,
   ChevronDown,
@@ -80,18 +79,28 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
     []
   )
 
-  async function handleSetLaunchDate(date: string | null) {
-    const newStatus: ClientStatus = date ? 'launched' : 'onboarding'
+  const [joinedDate, setJoinedDate] = useState<string>(
+    (client.joined_date ?? client.created_at).slice(0, 10)
+  )
+  const [editingJoined, setEditingJoined] = useState(false)
+  const [savingJoined, setSavingJoined] = useState(false)
+
+  async function handleJoinedDateChange(next: string) {
+    if (!next) return
+    const prev = joinedDate
+    setJoinedDate(next)
+    setSavingJoined(true)
     const { error } = await supabase
       .from('clients')
-      .update({ launched_date: date, status: newStatus })
+      .update({ joined_date: next })
       .eq('id', client.id)
+    setSavingJoined(false)
+    setEditingJoined(false)
     if (error) {
-      alert(`Could not update launch date: ${error.message}`)
+      setJoinedDate(prev)
+      alert(`Could not update joined date: ${error.message}`)
       return
     }
-    setLaunchedDate(date)
-    setStatus(newStatus)
     router.refresh()
   }
 
@@ -229,20 +238,40 @@ export function ClientDetailView({ client, csms }: ClientDetailViewProps) {
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Joined Date
             </p>
-            <p className="text-kst-white text-sm h-10 flex items-center">
-              {formatDate(client.joined_date ?? client.created_at)}
-            </p>
+            {editingJoined ? (
+              <input
+                type="date"
+                value={joinedDate}
+                autoFocus
+                disabled={savingJoined}
+                onChange={(e) => handleJoinedDateChange(e.target.value)}
+                onBlur={() => setEditingJoined(false)}
+                className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingJoined(true)}
+                className="text-kst-white text-sm h-10 flex items-center hover:text-kst-gold transition-colors"
+              >
+                {formatDate(joinedDate)}
+              </button>
+            )}
           </div>
 
           <div>
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Launched Date
             </p>
-            <LaunchDatePicker
-              launchedDate={launchedDate}
-              onSet={(d) => handleSetLaunchDate(d)}
-              onClear={() => handleSetLaunchDate(null)}
-            />
+            <p className="text-sm h-10 flex items-center">
+              {launchedDate ? (
+                <span className="text-kst-white">
+                  {formatDate(launchedDate)}
+                </span>
+              ) : (
+                <span className="text-kst-muted">Not launched</span>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -470,111 +499,6 @@ function LaunchStatusBanner({
           </p>
         )}
       </div>
-    </div>
-  )
-}
-
-function LaunchDatePicker({
-  launchedDate,
-  onSet,
-  onClear,
-}: {
-  launchedDate: string | null
-  onSet: (date: string) => void
-  onClear: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [showCustom, setShowCustom] = useState(false)
-  const [customDate, setCustomDate] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  )
-  const ref = useRef<HTMLDivElement>(null)
-  useClickOutside(ref, open, () => {
-    setOpen(false)
-    setShowCustom(false)
-  })
-
-  const today = new Date().toISOString().slice(0, 10)
-
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 h-10 text-sm hover:text-kst-gold transition-colors"
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <Calendar size={14} className="text-kst-muted" />
-        {launchedDate ? (
-          <span className="text-kst-white">{formatDate(launchedDate)}</span>
-        ) : (
-          <span className="text-kst-muted">Not launched</span>
-        )}
-      </button>
-      {open && (
-        <div className="absolute z-50 left-0 top-full mt-2 min-w-[240px] kst-dropdown p-1 kst-fade-in">
-          {!showCustom ? (
-            <>
-              <PickerOption
-                active={false}
-                onClick={() => {
-                  onSet(today)
-                  setOpen(false)
-                }}
-              >
-                <span className="text-kst-white">Launch Today</span>
-              </PickerOption>
-              <PickerOption
-                active={false}
-                onClick={() => setShowCustom(true)}
-              >
-                <span className="text-kst-white">Set Custom Date</span>
-              </PickerOption>
-              {launchedDate && (
-                <PickerOption
-                  active={false}
-                  onClick={() => {
-                    onClear()
-                    setOpen(false)
-                  }}
-                >
-                  <span className="text-kst-error">Remove Launch Date</span>
-                </PickerOption>
-              )}
-            </>
-          ) : (
-            <div className="p-2">
-              <input
-                type="date"
-                value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm mb-2 focus:outline-none focus:border-kst-gold/60"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCustom(false)}
-                  className="flex-1 h-9 rounded-lg text-kst-muted hover:text-kst-white text-xs transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSet(customDate)
-                    setOpen(false)
-                    setShowCustom(false)
-                  }}
-                  className="flex-1 h-9 rounded-lg bg-kst-gold text-kst-black font-semibold text-xs hover:bg-kst-gold-light transition-colors"
-                >
-                  Set Date
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
