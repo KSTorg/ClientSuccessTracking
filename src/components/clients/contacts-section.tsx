@@ -608,26 +608,27 @@ function AddContactModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
+      onClick={onClose}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={onClose}
-      />
-      <div className="glass-panel relative w-full max-w-[480px] p-7 max-h-[90vh] overflow-y-auto kst-fade-in">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute top-4 right-4 p-2 text-kst-muted hover:text-kst-white transition-colors"
+      <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
+        <div
+          className="glass-panel relative w-full max-w-[480px] p-7 kst-fade-in"
+          onClick={(e) => e.stopPropagation()}
         >
-          <X size={18} />
-        </button>
-        <h2 className="text-kst-white text-xl font-semibold mb-6">
-          Add Contact
-        </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-2 text-kst-muted hover:text-kst-white transition-colors"
+          >
+            <X size={18} />
+          </button>
+          <h2 className="text-kst-white text-xl font-semibold mb-6">
+            Add Contact
+          </h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Field label="Full Name">
@@ -701,6 +702,7 @@ function AddContactModal({
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   )
@@ -823,67 +825,69 @@ function LoginInvitePasswordModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
+      onClick={onCancel}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={onCancel}
-      />
-      <div className="glass-panel relative w-full max-w-[460px] p-7 kst-fade-in">
-        <button
-          type="button"
-          onClick={onCancel}
-          aria-label="Close"
-          className="absolute top-4 right-4 p-2 text-kst-muted hover:text-kst-white transition-colors"
+      <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
+        <div
+          className="glass-panel relative w-full max-w-[460px] p-7 kst-fade-in"
+          onClick={(e) => e.stopPropagation()}
         >
-          <X size={18} />
-        </button>
-        <h2 className="text-kst-white text-xl font-semibold mb-2">
-          Create login for {contact.full_name}
-        </h2>
-        <p className="text-kst-muted text-sm mb-6">
-          Set a password for{' '}
-          <span className="text-kst-white">{contact.email}</span>. You&apos;ll
-          share it with them directly — no email is sent.
-        </p>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-2 text-kst-muted hover:text-kst-white transition-colors"
+          >
+            <X size={18} />
+          </button>
+          <h2 className="text-kst-white text-xl font-semibold mb-2">
+            Create login for {contact.full_name}
+          </h2>
+          <p className="text-kst-muted text-sm mb-6">
+            Set a password for{' '}
+            <span className="text-kst-white">{contact.email}</span>. You&apos;ll
+            share it with them directly — no email is sent.
+          </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Field label="Password">
-            <input
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoFocus
-              placeholder="Min 8 characters"
-              autoComplete="new-password"
-              disabled={loading}
-              className={inputClass}
-            />
-          </Field>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <Field label="Password">
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoFocus
+                placeholder="Min 8 characters"
+                autoComplete="new-password"
+                disabled={loading}
+                className={inputClass}
+              />
+            </Field>
 
-          {error && <p className="text-kst-error text-sm">{error}</p>}
+            {error && <p className="text-kst-error text-sm">{error}</p>}
 
-          <div className="flex justify-end gap-3 mt-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={loading}
-              className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
-            >
-              <UserPlus size={14} />
-              {loading ? 'Creating…' : 'Create Login'}
-            </button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={loading}
+                className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
+              >
+                <UserPlus size={14} />
+                {loading ? 'Creating…' : 'Create Login'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )

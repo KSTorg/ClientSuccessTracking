@@ -209,21 +209,18 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-client-title"
+      onClick={onClose}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={onClose}
-        aria-hidden
-      />
-
-      <div
-        className="glass-panel relative w-full max-w-[520px] p-7 max-h-[90vh] overflow-y-auto"
-        style={{ animation: 'kst-fade-up 0.2s ease-out both' }}
-      >
+      <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
+        <div
+          className="glass-panel relative w-full max-w-[520px] p-7"
+          onClick={(e) => e.stopPropagation()}
+          style={{ animation: 'kst-fade-up 0.2s ease-out both' }}
+        >
         <button
           type="button"
           onClick={onClose}
@@ -409,6 +406,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
             </button>
           </div>
         </form>
+        </div>
       </div>
 
       <style>{`

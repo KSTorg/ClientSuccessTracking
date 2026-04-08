@@ -786,47 +786,46 @@ function LaunchConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
+      onClick={onCancel}
     >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={onCancel}
-        aria-hidden
-      />
-      <div
-        className="glass-panel relative w-full max-w-[480px] p-7 kst-fade-in"
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-kst-gold/10 border border-kst-gold/40 flex items-center justify-center">
-            <Rocket size={18} className="text-kst-gold" />
+      <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
+        <div
+          className="glass-panel relative w-full max-w-[480px] p-7 kst-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-kst-gold/10 border border-kst-gold/40 flex items-center justify-center">
+              <Rocket size={18} className="text-kst-gold" />
+            </div>
+            <h2 className="text-kst-white text-xl font-semibold">
+              Launch {companyName}?
+            </h2>
           </div>
-          <h2 className="text-kst-white text-xl font-semibold">
-            Launch {companyName}?
-          </h2>
-        </div>
-        <p className="text-kst-muted text-sm leading-relaxed mb-6">
-          Marking &lsquo;Launch Ads&rsquo; as complete will launch this
-          client and enable Success Tracking. The launch date will be set
-          to today.
-        </p>
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm shadow-[0_8px_32px_rgba(201,168,76,0.25)]"
-          >
-            <Rocket size={14} />
-            Confirm Launch
-          </button>
+          <p className="text-kst-muted text-sm leading-relaxed mb-6">
+            Marking &lsquo;Launch Ads&rsquo; as complete will launch this
+            client and enable Success Tracking. The launch date will be set
+            to today.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-5 h-11 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm shadow-[0_8px_32px_rgba(201,168,76,0.25)]"
+            >
+              <Rocket size={14} />
+              Confirm Launch
+            </button>
+          </div>
         </div>
       </div>
     </div>
