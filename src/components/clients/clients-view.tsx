@@ -59,7 +59,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
   }, [clients, search, statusFilter, programFilter])
 
   return (
-    <div className="max-w-7xl">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-8 gap-4">
         <h1
           className="text-5xl md:text-6xl text-kst-gold tracking-tight"
@@ -152,9 +152,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
-                  <th className="px-3 py-3 font-medium min-w-[150px]">
-                    Company
-                  </th>
+                  <th className="px-3 py-3 font-medium">Company</th>
                   <th className="px-3 py-3 font-medium w-[140px]">Contact</th>
                   <th className="px-3 py-3 font-medium w-[110px]">Status</th>
                   <th className="px-3 py-3 font-medium w-[80px] whitespace-nowrap">

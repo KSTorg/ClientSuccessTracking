@@ -61,7 +61,7 @@ export function ProtectedShell({
   const initials = initialsOf(displayName)
 
   return (
-    <div className="min-h-screen bg-kst-black">
+    <div className="min-h-screen bg-kst-black overflow-x-hidden">
       {/* Top Bar — sticky */}
       <header className="sticky top-0 z-50 h-16 flex items-center justify-between px-4 md:px-6 bg-kst-dark border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
