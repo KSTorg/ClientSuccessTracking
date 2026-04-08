@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import {
+  AlertCircle,
   Check,
   ChevronDown,
   Clock,
@@ -63,6 +64,7 @@ interface ClientTaskJoined {
   status: TaskStatus
   completed_at: string | null
   assigned_to: string | null
+  due_date: string | null
   task: TaskRow | null
 }
 
@@ -92,9 +94,14 @@ interface SetupChecklistProps {
   /** Primary contact name — shown in team view on rows with a null
    *  assignee so the team knows whose work it is. */
   clientContactName?: string | null
+  /** Client's joined_date, used to render the timeline indicator
+   *  ("Day X of 16") at the top of the checklist. */
+  joinedDate?: string | null
   onLaunchedChange?: (launchedDate: string | null) => void
   onStage12ProgressChange?: (progress: Stage12Progress) => void
 }
+
+const TIMELINE_TOTAL_DAYS = 16
 
 const LAUNCH_TASK_TITLE = 'Launch Ads'
 
@@ -226,6 +233,7 @@ export function SetupChecklist({
   program = 'educator_incubator',
   teamMembers = [],
   clientContactName = null,
+  joinedDate = null,
   onLaunchedChange,
   onStage12ProgressChange,
 }: SetupChecklistProps) {
@@ -255,6 +263,7 @@ export function SetupChecklist({
           .select(
             `
             id, client_id, task_id, status, completed_at, assigned_to,
+            due_date,
             task:tasks (
               id, parent_task_id, has_subtasks, title, description,
               training_url, doc_url, extra_links, order_index,
@@ -293,6 +302,7 @@ export function SetupChecklist({
           status: r.status as TaskStatus,
           completed_at: (r.completed_at as string | null) ?? null,
           assigned_to: (r.assigned_to as string | null) ?? null,
+          due_date: (r.due_date as string | null) ?? null,
           task: taskRaw ? { ...taskRaw, stage } : null,
         }
       })
@@ -465,6 +475,33 @@ export function SetupChecklist({
     setPendingLaunch(null)
   }, [pendingLaunch, supabase, clientId, onLaunchedChange])
 
+  // Update a task's due date (team view only — client view is read-only).
+  const updateDueDate = useCallback(
+    async (clientTaskId: string, nextDate: string | null) => {
+      const prev = rows.find((r) => r.id === clientTaskId)
+      if (!prev) return
+      const prevDate = prev.due_date
+      setRows((rs) =>
+        rs.map((r) =>
+          r.id === clientTaskId ? { ...r, due_date: nextDate } : r
+        )
+      )
+      const { error } = await supabase
+        .from('client_tasks')
+        .update({ due_date: nextDate })
+        .eq('id', clientTaskId)
+      if (error) {
+        setRows((rs) =>
+          rs.map((r) =>
+            r.id === clientTaskId ? { ...r, due_date: prevDate } : r
+          )
+        )
+        setToast(`Couldn't update due date: ${error.message}`)
+      }
+    },
+    [rows, supabase]
+  )
+
   // Reassign a task to a different team member (or null for Unassigned)
   const reassignTask = useCallback(
     async (clientTaskId: string, nextAssigneeId: string | null) => {
@@ -578,6 +615,9 @@ export function SetupChecklist({
         </div>
       )}
 
+      {/* Timeline (days since joined_date) */}
+      {joinedDate && <TimelineIndicator joinedDate={joinedDate} />}
+
       {/* Overall progress */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
@@ -665,6 +705,7 @@ export function SetupChecklist({
                       clientContactName={clientContactName}
                       onSetStatus={updateTaskStatus}
                       onReassign={reassignTask}
+                      onUpdateDueDate={updateDueDate}
                       isParentExpanded={openParents[ct.id] ?? false}
                       toggleParent={() =>
                         setOpenParents((p) => ({
@@ -776,6 +817,7 @@ interface TopLevelTaskProps {
   clientContactName: string | null
   onSetStatus: (id: string, next: TaskStatus) => void
   onReassign: (id: string, next: string | null) => void
+  onUpdateDueDate: (id: string, next: string | null) => void
   isParentExpanded: boolean
   toggleParent: () => void
 }
@@ -790,6 +832,7 @@ function TopLevelTask({
   clientContactName,
   onSetStatus,
   onReassign,
+  onUpdateDueDate,
   isParentExpanded,
   toggleParent,
 }: TopLevelTaskProps) {
@@ -896,6 +939,17 @@ function TopLevelTask({
           )}
         </div>
 
+        {!hasSubs && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <DueDateBadge
+              dueDate={ct.due_date}
+              completed={ct.status === 'completed'}
+              readOnly={!isTeamView}
+              onChange={(next) => onUpdateDueDate(ct.id, next)}
+            />
+          </div>
+        )}
+
         {!hideLinks && <TaskLinks task={ct.task} />}
 
         {/* Assignee display — team view shows the reassign picker, client
@@ -949,6 +1003,7 @@ function TopLevelTask({
                     clientContactName={clientContactName}
                     onSetStatus={onSetStatus}
                     onReassign={onReassign}
+                    onUpdateDueDate={onUpdateDueDate}
                   />
                 ))}
               </div>
@@ -969,6 +1024,7 @@ function SubtaskRow({
   clientContactName,
   onSetStatus,
   onReassign,
+  onUpdateDueDate,
 }: {
   ct: ClientTaskJoined
   isTeamView: boolean
@@ -978,6 +1034,7 @@ function SubtaskRow({
   clientContactName: string | null
   onSetStatus: (id: string, next: TaskStatus) => void
   onReassign: (id: string, next: string | null) => void
+  onUpdateDueDate: (id: string, next: string | null) => void
 }) {
   const isTeamOwnedForClient =
     !isTeamView && program === 'accelerator' && ct.assigned_to !== null
@@ -1009,6 +1066,13 @@ function SubtaskRow({
           {displaySubtaskTitle(ct.task?.title ?? '')}
         </p>
       </div>
+      <DueDateBadge
+        dueDate={ct.due_date}
+        completed={ct.status === 'completed'}
+        readOnly={!isTeamView}
+        onChange={(next) => onUpdateDueDate(ct.id, next)}
+        compact
+      />
       {!hideLinks && <TaskLinks task={ct.task} small />}
       {isTeamView ? (
         <AssigneePicker
@@ -1134,6 +1198,217 @@ function StatusPicker({
         </div>
       )}
     </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Date helpers (local time, YYYY-MM-DD strings)
+// ───────────────────────────────────────────────────────────────────────────
+
+function parseLocalYmd(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y!, (m ?? 1) - 1, d ?? 1)
+}
+
+function startOfToday(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function diffDaysStart(a: Date, b: Date): number {
+  const ax = new Date(a)
+  ax.setHours(0, 0, 0, 0)
+  const bx = new Date(b)
+  bx.setHours(0, 0, 0, 0)
+  return Math.round((ax.getTime() - bx.getTime()) / 86400000)
+}
+
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+function formatShortDate(d: Date): string {
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return sameYear
+    ? `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`
+    : `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Timeline indicator ("Day X of 16")
+// ───────────────────────────────────────────────────────────────────────────
+
+function TimelineIndicator({ joinedDate }: { joinedDate: string }) {
+  const start = parseLocalYmd(joinedDate)
+  const now = startOfToday()
+  const rawDay = diffDaysStart(now, start) + 1
+  const dayNumber = Math.max(1, rawDay)
+  const extended = dayNumber > TIMELINE_TOTAL_DAYS
+  const pct = Math.min(100, (dayNumber / TIMELINE_TOTAL_DAYS) * 100)
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-kst-muted text-xs uppercase tracking-wider">
+          Timeline
+        </span>
+        <span
+          className={cn(
+            'text-xs',
+            extended ? 'text-kst-muted' : 'text-kst-white'
+          )}
+        >
+          Day {dayNumber}
+          {extended ? ' (extended)' : ` of ${TIMELINE_TOTAL_DAYS}`}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-kst-surface overflow-hidden">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-kst-gold to-kst-gold-light transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Due date badge (read-only + click-to-edit for team view)
+// ───────────────────────────────────────────────────────────────────────────
+
+function DueDateBadge({
+  dueDate,
+  completed,
+  readOnly,
+  onChange,
+  compact,
+}: {
+  dueDate: string | null
+  completed: boolean
+  readOnly: boolean
+  onChange: (next: string | null) => void
+  compact?: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+
+  if (editing) {
+    return (
+      <input
+        type="date"
+        autoFocus
+        value={dueDate ?? ''}
+        onChange={(e) => {
+          onChange(e.target.value || null)
+          setEditing(false)
+        }}
+        onBlur={() => setEditing(false)}
+        className={cn(
+          'rounded-md bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20',
+          compact ? 'h-7 px-2 text-[11px]' : 'h-8 px-2.5 text-xs'
+        )}
+      />
+    )
+  }
+
+  // Nothing to show when the task has no due date. Team members can still
+  // add one via the three-dot reassign UI later if desired — for now we
+  // render an unobtrusive dash that's clickable in team view.
+  if (!dueDate) {
+    if (readOnly) return null
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className={cn(
+          'rounded-full border border-dashed border-white/15 text-kst-muted hover:text-kst-white hover:border-white/30 transition-colors shrink-0',
+          compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'
+        )}
+      >
+        + Due
+      </button>
+    )
+  }
+
+  const date = parseLocalYmd(dueDate)
+  const diff = diffDaysStart(date, startOfToday())
+
+  type State = 'completed' | 'overdue' | 'today' | 'tomorrow' | 'future'
+  let state: State
+  if (completed) state = 'completed'
+  else if (diff < 0) state = 'overdue'
+  else if (diff === 0) state = 'today'
+  else if (diff === 1) state = 'tomorrow'
+  else state = 'future'
+
+  const label =
+    state === 'overdue'
+      ? 'Overdue'
+      : state === 'today'
+        ? 'Due today'
+        : formatShortDate(date)
+
+  const baseCls = cn(
+    'inline-flex items-center gap-1 rounded-full font-medium border shrink-0 transition-colors',
+    compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'
+  )
+
+  const stateCls: Record<State, string> = {
+    completed: 'border-white/10 text-kst-muted',
+    future: 'border-white/10 text-kst-muted',
+    tomorrow: 'border-kst-gold/60 text-kst-gold bg-kst-gold/10',
+    today:
+      'border-kst-gold/80 text-kst-gold bg-kst-gold/15 font-semibold shadow-[0_0_10px_rgba(201,168,76,0.25)]',
+    overdue: '',
+  }
+
+  const overdueStyle =
+    state === 'overdue'
+      ? {
+          color: '#F87171',
+          borderColor: 'rgba(248, 113, 113, 0.55)',
+          background: 'rgba(248, 113, 113, 0.10)',
+        }
+      : undefined
+
+  const content = (
+    <>
+      {state === 'overdue' && (
+        <AlertCircle size={compact ? 10 : 11} className="shrink-0" />
+      )}
+      {label}
+    </>
+  )
+
+  if (readOnly) {
+    return (
+      <span className={cn(baseCls, stateCls[state])} style={overdueStyle}>
+        {content}
+      </span>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className={cn(baseCls, stateCls[state], 'hover:brightness-110')}
+      style={overdueStyle}
+      title={`Click to change due date (${formatShortDate(date)})`}
+    >
+      {content}
+    </button>
   )
 }
 

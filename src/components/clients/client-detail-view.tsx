@@ -389,6 +389,7 @@ export function ClientDetailView({
               specialty: c.specialty ?? null,
             }))}
             clientContactName={primaryContactName}
+            joinedDate={client.joined_date ?? client.created_at}
             onLaunchedChange={handleLaunchedChange}
             onStage12ProgressChange={handleStage12Progress}
           />

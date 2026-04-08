@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import {
+  AlertCircle,
   CheckCircle,
   ClipboardList,
   Rocket,
@@ -48,6 +49,8 @@ export default async function DashboardPage() {
   const { profile } = await requireTeamMember()
   const supabase = await createClient()
 
+  const todayIso = new Date().toISOString().slice(0, 10)
+
   const [
     totalRes,
     onboardingRes,
@@ -55,6 +58,7 @@ export default async function DashboardPage() {
     tasksRes,
     recentRes,
     launchedListRes,
+    overdueRes,
   ] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase
@@ -76,11 +80,17 @@ export default async function DashboardPage() {
       .select('id, company_name, launched_date')
       .not('launched_date', 'is', null)
       .order('launched_date', { ascending: false }),
+    supabase
+      .from('client_tasks')
+      .select('*', { count: 'exact', head: true })
+      .lt('due_date', todayIso)
+      .neq('status', 'completed'),
   ])
 
   const totalClients = totalRes.count ?? 0
   const onboardingCount = onboardingRes.count ?? 0
   const launchedCount = launchedRes.count ?? 0
+  const overdueCount = overdueRes.count ?? 0
 
   const allTasks = (tasksRes.data ?? []) as { status: string }[]
   const totalTasks = allTasks.length
@@ -136,7 +146,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
         <StatCard
           icon={<Users size={20} />}
           label="Total Clients"
@@ -156,6 +166,12 @@ export default async function DashboardPage() {
           icon={<TrendingUp size={20} />}
           label="Completion Rate"
           value={`${completionRate}%`}
+        />
+        <StatCard
+          icon={<AlertCircle size={20} />}
+          label="Overdue Tasks"
+          value={overdueCount}
+          tone={overdueCount > 0 ? 'danger' : 'default'}
         />
       </div>
 
@@ -255,17 +271,41 @@ function StatCard({
   icon,
   label,
   value,
+  tone = 'default',
 }: {
   icon: React.ReactNode
   label: string
   value: number | string
+  tone?: 'default' | 'danger'
 }) {
+  const isDanger = tone === 'danger'
   return (
-    <div className="glass-panel-sm p-5">
+    <div
+      className="glass-panel-sm p-5"
+      style={
+        isDanger
+          ? {
+              borderColor: 'rgba(248, 113, 113, 0.35)',
+              background:
+                'linear-gradient(135deg, rgba(248,113,113,0.10) 0%, rgba(248,113,113,0.02) 100%)',
+            }
+          : undefined
+      }
+    >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-kst-gold">{icon}</span>
+        <span
+          className={isDanger ? 'text-kst-error' : 'text-kst-gold'}
+        >
+          {icon}
+        </span>
       </div>
-      <p className="text-kst-white text-3xl font-bold tracking-tight">
+      <p
+        className={
+          isDanger
+            ? 'text-kst-error text-3xl font-bold tracking-tight'
+            : 'text-kst-white text-3xl font-bold tracking-tight'
+        }
+      >
         {value}
       </p>
       <p className="text-kst-muted text-xs mt-1">{label}</p>
