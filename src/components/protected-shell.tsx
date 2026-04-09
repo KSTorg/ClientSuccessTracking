@@ -15,10 +15,16 @@ import { SignOutButton } from '@/components/sign-out-button'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
 
+interface TaskBadge {
+  overdue: number
+  total: number
+}
+
 interface ProtectedShellProps {
   fullName: string
   email: string
   role: Role
+  taskBadge?: TaskBadge
   children: ReactNode
 }
 
@@ -34,6 +40,7 @@ function getNavItems(role: Role): NavItem[] {
   }
   return [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/my-tasks', label: 'My Tasks', icon: CheckSquare },
     { href: '/clients', label: 'Clients', icon: Briefcase },
     { href: '/team', label: 'Team', icon: Users },
   ]
@@ -51,6 +58,7 @@ export function ProtectedShell({
   fullName,
   email,
   role,
+  taskBadge,
   children,
 }: ProtectedShellProps) {
   const pathname = usePathname()
@@ -116,7 +124,7 @@ export function ProtectedShell({
           overflowY: 'auto',
         }}
       >
-        <SidebarContent navItems={navItems} pathname={pathname} />
+        <SidebarContent navItems={navItems} pathname={pathname} taskBadge={taskBadge} />
       </aside>
 
       {/* Sidebar (mobile overlay) */}
@@ -147,6 +155,7 @@ export function ProtectedShell({
             <SidebarContent
               navItems={navItems}
               pathname={pathname}
+              taskBadge={taskBadge}
               onNavigate={() => setMobileOpen(false)}
             />
           </aside>
@@ -176,10 +185,12 @@ export function ProtectedShell({
 function SidebarContent({
   navItems,
   pathname,
+  taskBadge,
   onNavigate,
 }: {
   navItems: NavItem[]
   pathname: string
+  taskBadge?: TaskBadge
   onNavigate?: () => void
 }) {
   return (
@@ -190,6 +201,25 @@ function SidebarContent({
             item.href !== '#' &&
             (pathname === item.href || pathname.startsWith(`${item.href}/`))
           const Icon = item.icon
+
+          // Badge for My Tasks
+          let badge: React.ReactNode = null
+          if (item.href === '/my-tasks' && taskBadge) {
+            if (taskBadge.overdue > 0) {
+              badge = (
+                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                  {taskBadge.overdue}
+                </span>
+              )
+            } else if (taskBadge.total > 0) {
+              badge = (
+                <span className="ml-auto bg-white/10 text-kst-muted text-[10px] font-medium min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                  {taskBadge.total}
+                </span>
+              )
+            }
+          }
+
           return (
             <Link
               key={`${item.label}-${item.href}`}
@@ -204,6 +234,7 @@ function SidebarContent({
             >
               <Icon size={16} />
               <span>{item.label}</span>
+              {badge}
             </Link>
           )
         })}
