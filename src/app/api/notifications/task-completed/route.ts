@@ -1,11 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { sendDiscordMessage } from '@/lib/discord'
-import {
-  getClientBlockers,
-  formatShortDate,
-} from '@/lib/overdue'
+import { sendDiscordEmbed, COLORS, type DiscordEmbed } from '@/lib/discord'
+import { getClientBlockers, formatShortDate } from '@/lib/overdue'
 
 interface Body {
   clientId?: string
@@ -76,9 +73,14 @@ export async function POST(request: NextRequest) {
 
     if (!clientState || clientState.blockers.length === 0) {
       // No remaining overdue tasks — all caught up
-      await sendDiscordMessage(
-        `🎉 **${companyName}** — All caught up! No overdue tasks.\nCompleted by: ${completedByName}`
-      )
+      await sendDiscordEmbed([
+        {
+          title: '🎉 All Caught Up!',
+          description: `**${companyName}** has no more overdue tasks.`,
+          color: COLORS.gold,
+          timestamp: new Date().toISOString(),
+        },
+      ])
       return NextResponse.json({ success: true, state: 'all_caught_up' })
     }
 
@@ -92,12 +94,26 @@ export async function POST(request: NextRequest) {
         ? `<@${next.csmDiscordId}> (CSM)`
         : 'Client task'
 
-    const msg =
-      `✅ **${companyName}** — "${taskTitle}" completed by ${completedByName}\n` +
-      `⏭️ Next up: "${next.taskTitle}" — Due ${formatShortDate(next.dueDate)}\n` +
-      `→ ${mention}`
+    // Collect pings for content (outside embed)
+    const pings: string[] = []
+    if (next.discordId) pings.push(`<@${next.discordId}>`)
+    else if (next.csmDiscordId) pings.push(`<@${next.csmDiscordId}>`)
 
-    await sendDiscordMessage(msg)
+    const embed: DiscordEmbed = {
+      title: '✅ Task Completed',
+      description: `**${companyName}** — "${taskTitle}"\nCompleted by: ${completedByName}`,
+      color: COLORS.green,
+      fields: [
+        {
+          name: '⏭️ Next Up',
+          value: `"${next.taskTitle}" — Due ${formatShortDate(next.dueDate)}\n→ ${mention}`,
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    }
+
+    await sendDiscordEmbed([embed], pings.length > 0 ? pings.join(' ') : undefined)
     return NextResponse.json({ success: true, state: 'next_up' })
   } catch (err) {
     console.error('[task-completed] unhandled error:', err)

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { sendDiscordMessages } from '@/lib/discord'
+import { sendDiscordEmbed, COLORS } from '@/lib/discord'
 import {
   getClientBlockers,
   formatShortDate,
@@ -9,69 +9,65 @@ import {
   type ClientBlockers,
 } from '@/lib/overdue'
 
-function buildMessages(
+function buildEmbed(
   clientBlockers: ClientBlockers[],
   totalClients: number
-): string[] {
+): { embeds: Parameters<typeof sendDiscordEmbed>[0]; content?: string } {
   if (clientBlockers.length === 0) {
-    return [
-      `✅ **All clients on track!** No overdue tasks today (${formatTodayLong()}).`,
-    ]
+    return {
+      embeds: [
+        {
+          title: '✅ All On Track',
+          description: 'No overdue tasks across any client today.',
+          color: COLORS.green,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    }
   }
 
-  const header = `🌅 **KST Tasks Overdue** — ${formatTodayLong()}`
-  const summary = `📊 Summary: **${clientBlockers.length}** clients with blockers · **${
-    totalClients - clientBlockers.length
-  }** clients on track`
-
-  // Build a section per client
-  const sections: string[] = []
+  // Build description lines — one per client
+  const mentions = new Set<string>()
+  const lines: string[] = []
   for (const c of clientBlockers) {
-    const lines: string[] = []
-    lines.push(`\n**${c.companyName}** (${formatProgramLabel(c.program)})`)
-    for (const b of c.blockers) {
-      lines.push(
-        `⚠️ ${b.stageName}: "${b.taskTitle}" — Due ${formatShortDate(b.dueDate)}`
-      )
-      if (b.assignedTo) {
-        if (b.discordId) {
-          lines.push(`→ Assigned to: <@${b.discordId}>`)
-        } else {
-          lines.push(`→ Assigned to: ${b.assignedName ?? 'Unassigned'}`)
-        }
+    const b = c.blockers[0]!
+    let assigneeStr = ''
+    if (b.assignedTo) {
+      if (b.discordId) {
+        assigneeStr = `<@${b.discordId}>`
+        mentions.add(`<@${b.discordId}>`)
       } else {
-        // Client task — ping the CSM
-        if (b.csmDiscordId) {
-          lines.push(`→ Client task — CSM: <@${b.csmDiscordId}>`)
-        } else {
-          lines.push(`→ Client task`)
-        }
+        assigneeStr = b.assignedName ?? 'Unassigned'
       }
+    } else if (b.csmDiscordId) {
+      assigneeStr = `<@${b.csmDiscordId}> (CSM)`
+      mentions.add(`<@${b.csmDiscordId}>`)
+    } else {
+      assigneeStr = 'Client task'
     }
-    sections.push(lines.join('\n'))
+
+    lines.push(
+      `**${c.companyName}** (${formatProgramLabel(c.program)})\n` +
+        `⚠️ ${b.stageName}: "${b.taskTitle}" — Due ${formatShortDate(b.dueDate)}\n` +
+        `→ ${assigneeStr}`
+    )
   }
 
-  // Chunk into <= 1900-char messages
-  const LIMIT = 1800
-  const messages: string[] = []
-  let current = header
-  for (const section of sections) {
-    if ((current + section).length > LIMIT) {
-      messages.push(current)
-      current = ''
-    }
-    current += section
+  const onTrack = totalClients - clientBlockers.length
+  return {
+    content: mentions.size > 0 ? [...mentions].join(' ') : undefined,
+    embeds: [
+      {
+        title: '⚠️ Tasks Overdue',
+        description: lines.join('\n\n'),
+        color: COLORS.red,
+        footer: {
+          text: `📊 Summary: ${clientBlockers.length} clients with blockers · ${onTrack} on track — ${formatTodayLong()}`,
+        },
+        timestamp: new Date().toISOString(),
+      },
+    ],
   }
-  // Append summary to the last message (or push a new one if it overflows)
-  if ((current + '\n\n' + summary).length > LIMIT) {
-    if (current.trim()) messages.push(current)
-    messages.push(summary)
-  } else {
-    current += `\n\n${summary}`
-    if (current.trim()) messages.push(current)
-  }
-
-  return messages
 }
 
 export async function POST(request: NextRequest) {
@@ -102,8 +98,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const { blockers, totalClients } = await getClientBlockers(supabaseAdmin)
-    const messages = buildMessages(blockers, totalClients)
-    await sendDiscordMessages(messages)
+    const { embeds, content } = buildEmbed(blockers, totalClients)
+    await sendDiscordEmbed(embeds, content)
 
     return NextResponse.json({
       success: true,

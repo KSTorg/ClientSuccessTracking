@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { sendDiscordMessage } from '@/lib/discord'
+import { sendDiscordEmbed, COLORS } from '@/lib/discord'
 import { formatProgramLabel, formatTodayLong } from '@/lib/overdue'
 
 interface Body {
@@ -79,9 +79,10 @@ export async function POST(request: NextRequest) {
       created_at: string | null
     }
 
-    // Resolve CSM discord id for mentions
+    // Resolve CSM profile for mentions
     const csmId = c.client_team?.csm ?? c.assigned_csm ?? null
-    let csmMention = ''
+    let csmName = ''
+    let csmDiscordId: string | null = null
     if (csmId) {
       const { data: csmRow } = await supabaseAdmin
         .from('profiles')
@@ -92,26 +93,38 @@ export async function POST(request: NextRequest) {
         full_name: string | null
         discord_id: string | null
       } | null
-      if (csm?.discord_id) csmMention = `<@${csm.discord_id}>`
-      else if (csm?.full_name) csmMention = csm.full_name
+      csmDiscordId = csm?.discord_id ?? null
+      csmName = csm?.full_name ?? ''
     }
 
+    const csmDisplay = csmDiscordId
+      ? `<@${csmDiscordId}>`
+      : csmName || 'Unassigned'
+
     if (type === 'new_client') {
-      const lines = [
-        `🆕 **New Client: ${c.company_name}** (${formatProgramLabel(
-          c.program
-        )})`,
-      ]
-      if (csmMention) lines.push(`CSM: ${csmMention}`)
-      lines.push(`Joined: ${formatTodayLong()}`)
-      lines.push(`Added by: ${callerName}`)
-      await sendDiscordMessage(lines.join('\n'))
+      const pings = csmDiscordId ? `<@${csmDiscordId}>` : undefined
+      await sendDiscordEmbed(
+        [
+          {
+            title: '🆕 New Client',
+            description: `**${c.company_name}** (${formatProgramLabel(c.program)})`,
+            color: COLORS.blue,
+            fields: [
+              { name: 'CSM', value: csmDisplay, inline: true },
+              { name: 'Joined', value: formatTodayLong(), inline: true },
+              { name: 'Added by', value: callerName, inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        pings
+      )
       return NextResponse.json({ success: true })
     }
 
     if (type === 'launched') {
       // Compute days to launch from joined_date → launched_date (or today)
-      let days: number | null = null
+      let daysStr = '—'
       const joined = c.joined_date ?? c.created_at
       if (joined) {
         const [jy, jm, jd] = joined.slice(0, 10).split('-').map(Number)
@@ -120,21 +133,33 @@ export async function POST(request: NextRequest) {
         const [ly, lm, ld] = launchIso.split('-').map(Number)
         const jDate = new Date(jy!, (jm ?? 1) - 1, jd ?? 1)
         const lDate = new Date(ly!, (lm ?? 1) - 1, ld ?? 1)
-        days = Math.round(
+        const days = Math.round(
           (lDate.getTime() - jDate.getTime()) / 86400000
         )
+        if (days >= 0) daysStr = `${days} day${days === 1 ? '' : 's'}`
       }
 
-      const lines = [
-        `🚀 **${c.company_name} just launched!** 🎉`,
-        `Launched by: ${callerName}`,
-        `Program: ${formatProgramLabel(c.program)}`,
-      ]
-      if (days !== null && days >= 0) {
-        lines.push(`Time to launch: ${days} day${days === 1 ? '' : 's'}`)
-      }
-      if (csmMention) lines.push(`CSM: ${csmMention}`)
-      await sendDiscordMessage(lines.join('\n'))
+      const pings = csmDiscordId ? `<@${csmDiscordId}>` : undefined
+      await sendDiscordEmbed(
+        [
+          {
+            title: '🚀 Client Launched!',
+            description: `**${c.company_name}**`,
+            color: COLORS.gold,
+            fields: [
+              { name: 'Launched by', value: callerName, inline: true },
+              {
+                name: 'Program',
+                value: formatProgramLabel(c.program),
+                inline: true,
+              },
+              { name: 'Time to Launch', value: daysStr, inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        pings
+      )
       return NextResponse.json({ success: true })
     }
 
