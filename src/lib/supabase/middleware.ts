@@ -6,6 +6,7 @@ const PUBLIC_PREFIXES = [
   '/auth',
   '/reset-password',
   '/update-password',
+  '/api',
 ]
 
 function isPublicPath(pathname: string) {
