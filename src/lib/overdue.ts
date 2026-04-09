@@ -32,10 +32,9 @@ function todayLocalIso(): string {
 }
 
 /**
- * Walk every client's incomplete-and-overdue tasks and return the single
- * first blocker per stage (lowest order_index). Tasks within a stage are
- * strictly sequential, so only the first one matters. Different stages
- * each get their own blocker (max 1 per stage). Parent tasks
+ * Walk every client's incomplete-and-overdue tasks and return a single
+ * blocker per client — the earliest overdue task sorted by due_date,
+ * then stage order_index, then task order_index. Parent tasks
  * (has_subtasks=true) are skipped — we only report leaf work items.
  *
  * Pass `clientId` to scope the computation to a single client (used by
@@ -178,49 +177,36 @@ export async function getClientBlockers(
       null
     const csmProfile = csmId ? profileMap.get(csmId) ?? null : null
 
-    // Group by stage
-    const byStage = new Map<string, NormTask[]>()
-    for (const t of clientTasks) {
-      if (!byStage.has(t.stage_id)) byStage.set(t.stage_id, [])
-      byStage.get(t.stage_id)!.push(t)
-    }
+    // Sort by due_date ASC, then stage order ASC, then task order ASC
+    clientTasks.sort(
+      (a, b) =>
+        (a.due_date ?? '').localeCompare(b.due_date ?? '') ||
+        a.stage_order - b.stage_order ||
+        a.task_order - b.task_order
+    )
 
-    const blockers: Blocker[] = []
-
-    // Sort stages by order_index so the message reads in program order
-    const orderedStages = Array.from(byStage.entries()).sort((a, b) => {
-      const oa = a[1][0]?.stage_order ?? 0
-      const ob = b[1][0]?.stage_order ?? 0
-      return oa - ob
+    // Single blocker: the very first task after sorting
+    const first = clientTasks[0]!
+    const assignee = first.assigned_to
+      ? profileMap.get(first.assigned_to) ?? null
+      : null
+    result.push({
+      clientId: client.id,
+      companyName: client.company_name,
+      program: client.program,
+      blockers: [
+        {
+          taskTitle: first.task_title,
+          dueDate: first.due_date,
+          assignedTo: first.assigned_to,
+          assignedName: assignee?.full_name ?? null,
+          discordId: assignee?.discord_id ?? null,
+          csmId,
+          csmDiscordId: csmProfile?.discord_id ?? null,
+          stageName: first.stage_name,
+        },
+      ],
     })
-
-    for (const [, stageTasks] of orderedStages) {
-      // Sort by order_index ascending — first task is the blocker
-      stageTasks.sort((a, b) => a.task_order - b.task_order)
-      const first = stageTasks[0]!
-      const assignee = first.assigned_to
-        ? profileMap.get(first.assigned_to) ?? null
-        : null
-      blockers.push({
-        taskTitle: first.task_title,
-        dueDate: first.due_date,
-        assignedTo: first.assigned_to,
-        assignedName: assignee?.full_name ?? null,
-        discordId: assignee?.discord_id ?? null,
-        csmId,
-        csmDiscordId: csmProfile?.discord_id ?? null,
-        stageName: first.stage_name,
-      })
-    }
-
-    if (blockers.length > 0) {
-      result.push({
-        clientId: client.id,
-        companyName: client.company_name,
-        program: client.program,
-        blockers,
-      })
-    }
   }
 
   return {
