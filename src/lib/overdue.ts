@@ -32,12 +32,11 @@ function todayLocalIso(): string {
 }
 
 /**
- * Walk every client's incomplete-and-overdue tasks and return the "first
- * actionable blocker" per stage. Later overdue tasks within the same
- * stage are ignored because they can't be started until the earlier one
- * is unblocked. Tasks with the same due_date within a stage are treated
- * as parallel blockers and all reported. Parent tasks (has_subtasks=true)
- * are skipped — we only report leaf work items.
+ * Walk every client's incomplete-and-overdue tasks and return the single
+ * first blocker per stage (lowest order_index). Tasks within a stage are
+ * strictly sequential, so only the first one matters. Different stages
+ * each get their own blocker (max 1 per stage). Parent tasks
+ * (has_subtasks=true) are skipped — we only report leaf work items.
  *
  * Pass `clientId` to scope the computation to a single client (used by
  * the real-time task-completed notification).
@@ -76,7 +75,7 @@ export async function getClientBlockers(
       `
       id, client_id, status, due_date, assigned_to,
       task:tasks (
-        id, title, has_subtasks,
+        id, title, has_subtasks, order_index,
         stage:stages ( id, name, order_index )
       )
       `
@@ -101,6 +100,7 @@ export async function getClientBlockers(
     assigned_to: string | null
     task_title: string
     has_subtasks: boolean
+    task_order: number
     stage_id: string
     stage_name: string
     stage_order: number
@@ -123,6 +123,7 @@ export async function getClientBlockers(
       assigned_to: (obj.assigned_to as string | null) ?? null,
       task_title: (taskObj.title as string) ?? 'Untitled task',
       has_subtasks: (taskObj.has_subtasks as boolean) ?? false,
+      task_order: (taskObj.order_index as number) ?? 0,
       stage_id: (stageObj.id as string) ?? 'unknown',
       stage_name: (stageObj.name as string) ?? '—',
       stage_order: (stageObj.order_index as number) ?? 0,
@@ -194,30 +195,22 @@ export async function getClientBlockers(
     })
 
     for (const [, stageTasks] of orderedStages) {
-      // Sort by due_date ascending within the stage
-      stageTasks.sort(
-        (a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? '')
-      )
-      const earliestDueDate = stageTasks[0]!.due_date
-      const parallelBlockers = stageTasks.filter(
-        (t) => t.due_date === earliestDueDate
-      )
-
-      for (const b of parallelBlockers) {
-        const assignee = b.assigned_to
-          ? profileMap.get(b.assigned_to) ?? null
-          : null
-        blockers.push({
-          taskTitle: b.task_title,
-          dueDate: b.due_date,
-          assignedTo: b.assigned_to,
-          assignedName: assignee?.full_name ?? null,
-          discordId: assignee?.discord_id ?? null,
-          csmId,
-          csmDiscordId: csmProfile?.discord_id ?? null,
-          stageName: b.stage_name,
-        })
-      }
+      // Sort by order_index ascending — first task is the blocker
+      stageTasks.sort((a, b) => a.task_order - b.task_order)
+      const first = stageTasks[0]!
+      const assignee = first.assigned_to
+        ? profileMap.get(first.assigned_to) ?? null
+        : null
+      blockers.push({
+        taskTitle: first.task_title,
+        dueDate: first.due_date,
+        assignedTo: first.assigned_to,
+        assignedName: assignee?.full_name ?? null,
+        discordId: assignee?.discord_id ?? null,
+        csmId,
+        csmDiscordId: csmProfile?.discord_id ?? null,
+        stageName: first.stage_name,
+      })
     }
 
     if (blockers.length > 0) {
