@@ -143,6 +143,31 @@ export function ClientDetailView({
     router.refresh()
   }
 
+  const [programEndDate, setProgramEndDate] = useState<string | null>(
+    client.program_end_date ?? null
+  )
+  const [editingEndDate, setEditingEndDate] = useState(false)
+  const [savingEndDate, setSavingEndDate] = useState(false)
+
+  async function handleEndDateChange(next: string) {
+    if (!next) return
+    const prev = programEndDate
+    setProgramEndDate(next)
+    setSavingEndDate(true)
+    const { error } = await supabase
+      .from('clients')
+      .update({ program_end_date: next })
+      .eq('id', client.id)
+    setSavingEndDate(false)
+    setEditingEndDate(false)
+    if (error) {
+      setProgramEndDate(prev)
+      toast.error(`Could not update end date: ${error.message}`)
+      return
+    }
+    router.refresh()
+  }
+
   const [notes, setNotes] = useState(client.notes ?? '')
   const [notesOpen, setNotesOpen] = useState(true)
   const [savingNotes, setSavingNotes] = useState(false)
@@ -302,7 +327,7 @@ export function ClientDetailView({
           </span>
           <ProgramBadge program={client.program} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div>
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Status
@@ -352,6 +377,47 @@ export function ClientDetailView({
                 <span className="text-kst-muted">Not launched</span>
               )}
             </p>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
+              Program End
+            </p>
+            {editingEndDate ? (
+              <input
+                type="date"
+                value={programEndDate ?? ''}
+                autoFocus
+                disabled={savingEndDate}
+                onChange={(e) => handleEndDateChange(e.target.value)}
+                onBlur={() => setEditingEndDate(false)}
+                className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingEndDate(true)}
+                className={cn(
+                  'text-sm h-10 flex items-center transition-colors',
+                  !programEndDate
+                    ? 'text-kst-muted hover:text-kst-gold'
+                    : (() => {
+                        const today = new Date().toISOString().slice(0, 10)
+                        if (programEndDate < today) return 'text-red-400 hover:text-red-300'
+                        const in7 = new Date()
+                        in7.setDate(in7.getDate() + 7)
+                        if (programEndDate <= in7.toISOString().slice(0, 10)) return 'text-kst-gold hover:text-kst-gold-light'
+                        return 'text-kst-muted hover:text-kst-gold'
+                      })()
+                )}
+              >
+                {!programEndDate
+                  ? 'Not set'
+                  : programEndDate < new Date().toISOString().slice(0, 10)
+                    ? `Ended ${formatDate(programEndDate)}`
+                    : formatDate(programEndDate)}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -106,6 +106,14 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
 
     setLoading(true)
 
+    // Compute program end date: EI = +4 months, ACC = +3 months
+    let programEndDate: string | null = null
+    if (joinedDate) {
+      const d = new Date(joinedDate + 'T00:00:00')
+      d.setMonth(d.getMonth() + (program === 'educator_incubator' ? 4 : 3))
+      programEndDate = d.toISOString().slice(0, 10)
+    }
+
     // 1) Insert the client row and grab its id
     const { data: clientRow, error: insertErr } = await supabase
       .from('clients')
@@ -114,6 +122,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
         contact_name: contactName.trim(),
         contact_email: contactEmail.trim(),
         joined_date: joinedDate || null,
+        program_end_date: programEndDate,
         client_team: clientTeam,
         notes: notes.trim() || null,
         status: 'onboarding',

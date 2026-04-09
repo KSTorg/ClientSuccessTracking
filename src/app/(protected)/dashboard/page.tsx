@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle,
   ClipboardList,
+  Clock,
   Rocket,
   UserPlus,
   Users,
@@ -59,6 +60,10 @@ export default async function DashboardPage() {
 
   const todayIso = new Date().toISOString().slice(0, 10)
 
+  const in7 = new Date()
+  in7.setDate(in7.getDate() + 7)
+  const in7Iso = in7.toISOString().slice(0, 10)
+
   const [
     totalRes,
     onboardingRes,
@@ -66,6 +71,7 @@ export default async function DashboardPage() {
     recentRes,
     launchedListRes,
     overdueRes,
+    endingSoonRes,
     // Analytics views
     globalTotalsRes,
     weeklyTrendRes,
@@ -98,6 +104,11 @@ export default async function DashboardPage() {
       .select('*', { count: 'exact', head: true })
       .lt('due_date', todayIso)
       .neq('status', 'completed'),
+    supabase
+      .from('clients')
+      .select('*', { count: 'exact', head: true })
+      .gte('program_end_date', todayIso)
+      .lte('program_end_date', in7Iso),
     supabase.from('analytics_global_totals').select('*').maybeSingle(),
     supabase
       .from('analytics_weekly_trend')
@@ -131,6 +142,7 @@ export default async function DashboardPage() {
   const onboardingCount = onboardingRes.count ?? 0
   const launchedCount = launchedRes.count ?? 0
   const overdueCount = overdueRes.count ?? 0
+  const endingSoonCount = endingSoonRes.count ?? 0
 
   const recent = (recentRes.data ?? []) as RecentClient[]
   const launchedList = (launchedListRes.data ?? []) as LaunchedRow[]
@@ -195,7 +207,7 @@ export default async function DashboardPage() {
       {/* ── Overview ─────────────────────────────────────────────── */}
 
       {/* 4 stat cards in one row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
         <StatCard
           icon={<Users size={20} />}
           label="Total Clients"
@@ -216,6 +228,12 @@ export default async function DashboardPage() {
           label="Overdue Tasks"
           value={overdueCount}
           tone={overdueCount > 0 ? 'danger' : 'default'}
+        />
+        <StatCard
+          icon={<Clock size={20} />}
+          label="Ending Soon"
+          value={endingSoonCount}
+          tone={endingSoonCount > 0 ? 'gold' : 'default'}
         />
       </div>
 
@@ -329,9 +347,10 @@ function StatCard({
   icon: React.ReactNode
   label: string
   value: number | string
-  tone?: 'default' | 'danger'
+  tone?: 'default' | 'danger' | 'gold'
 }) {
   const isDanger = tone === 'danger'
+  const isGold = tone === 'gold'
   return (
     <div
       className="glass-panel-sm p-5"
@@ -342,7 +361,13 @@ function StatCard({
               background:
                 'linear-gradient(135deg, rgba(248,113,113,0.10) 0%, rgba(248,113,113,0.02) 100%)',
             }
-          : undefined
+          : isGold
+            ? {
+                borderColor: 'rgba(201, 168, 76, 0.35)',
+                background:
+                  'linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.02) 100%)',
+              }
+            : undefined
       }
     >
       <div className="flex items-center justify-between mb-3">
@@ -354,7 +379,9 @@ function StatCard({
         className={
           isDanger
             ? 'text-kst-error text-3xl font-bold tracking-tight'
-            : 'text-kst-white text-3xl font-bold tracking-tight'
+            : isGold
+              ? 'text-kst-gold text-3xl font-bold tracking-tight'
+              : 'text-kst-white text-3xl font-bold tracking-tight'
         }
       >
         {value}

@@ -71,6 +71,7 @@ export interface Client {
   client_team: ClientTeam | null
   joined_date: string | null
   launched_date: string | null
+  program_end_date: string | null
   notes: string | null
   user_id: string | null
   created_at: string

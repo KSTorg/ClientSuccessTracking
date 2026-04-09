@@ -161,13 +161,14 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
               style={{ tableLayout: 'fixed' }}
             >
               <colgroup>
-                <col style={{ width: '18%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '11%' }} />
+                <col style={{ width: '17%' }} />
                 <col style={{ width: '13%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '20%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '18%' }} />
               </colgroup>
               <thead>
                 <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
@@ -188,6 +189,9 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                   </th>
                   <th className="px-3 py-3 font-medium">
                     <div className="truncate">Joined</div>
+                  </th>
+                  <th className="px-3 py-3 font-medium">
+                    <div className="truncate">Ends</div>
                   </th>
                   <th className="px-3 py-3 font-medium">
                     <div className="truncate">Progress</div>
@@ -249,6 +253,9 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                         </div>
                       </td>
                       <td className="px-3 py-4">
+                        <EndDateCell date={c.program_end_date} />
+                      </td>
+                      <td className="px-3 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                             <div
@@ -267,7 +274,7 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                 {filtered.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       className="px-5 py-10 text-center text-kst-muted text-sm"
                     >
                       No clients match your filters.
@@ -287,4 +294,32 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
       />
     </div>
   )
+}
+
+const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
+function EndDateCell({ date }: { date: string | null }) {
+  if (!date) return <span className="text-kst-muted truncate">—</span>
+
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const in7 = new Date()
+  in7.setDate(in7.getDate() + 7)
+  const in7Iso = in7.toISOString().slice(0, 10)
+
+  const [, m, d] = date.split('-').map(Number)
+  const short = `${MONTH_SHORT[(m ?? 1) - 1]} ${d}`
+
+  let color = 'text-kst-muted'
+  let label = short
+  if (date < todayIso) {
+    color = 'text-red-400'
+    label = 'Ended'
+  } else if (date <= in7Iso) {
+    color = 'text-kst-gold'
+  }
+
+  return <span className={cn('truncate text-sm', color)}>{label}</span>
 }
