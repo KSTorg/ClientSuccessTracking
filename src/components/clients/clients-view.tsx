@@ -321,7 +321,7 @@ function EndDateCell({ date }: { date: string | null }) {
   let label = short
   if (date < todayIso) {
     color = 'text-red-400'
-    label = 'Ended'
+    label = `Ended ${short}`
   } else if (date <= in7Iso) {
     color = 'text-kst-gold'
   }
