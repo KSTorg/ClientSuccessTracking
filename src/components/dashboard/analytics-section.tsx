@@ -77,10 +77,15 @@ export interface ClientTimeToLaunchRow {
 
 export interface RetentionData {
   total_ended_programs: number | null
-  total_renewed: number | null
+  total_ever_renewed: number | null
   total_churned: number | null
+  total_renewals: number | null
+  ended_no_action: number | null
   renewal_rate_pct: number | null
   churn_rate_pct: number | null
+  avg_renewals_before_churn: number | null
+  avg_days_to_churn: number | null
+  churned_after_renewal_pct: number | null
   ei_renewed: number | null
   ei_churned: number | null
   acc_renewed: number | null
@@ -570,12 +575,19 @@ function TimeToLaunchPanel({ rows }: { rows: ClientTimeToLaunchRow[] }) {
 // G) Retention
 // ───────────────────────────────────────────────────────────────────────────
 
+function fmt(v: number | null | undefined): string {
+  return v != null && Number.isFinite(Number(v)) ? String(Number(v)) : '—'
+}
+
+function fmtPct(v: number | null | undefined): string {
+  return v != null && Number.isFinite(Number(v)) ? `${Number(v).toFixed(0)}%` : '—'
+}
+
 function RetentionPanel({ data }: { data: RetentionData | null }) {
   const total = Number(data?.total_ended_programs ?? 0)
-  const renewed = Number(data?.total_renewed ?? 0)
+  const renewed = Number(data?.total_ever_renewed ?? 0)
   const churned = Number(data?.total_churned ?? 0)
   const renewalPct = Number(data?.renewal_rate_pct ?? 0)
-  const churnPct = Number(data?.churn_rate_pct ?? 0)
 
   const renewalColor =
     renewalPct >= 70
@@ -599,7 +611,7 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
       ) : (
         <>
           {/* Ratio bar */}
-          <div className="h-3 rounded-full overflow-hidden flex mb-5">
+          <div className="h-3 rounded-full overflow-hidden flex bg-white/[0.06] mb-5">
             {renewed > 0 && (
               <div
                 className="bg-kst-success transition-all"
@@ -614,49 +626,99 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
             )}
           </div>
 
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 gap-4 mb-5">
+          {/* Row 1: Rates */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <p className="text-kst-muted text-xs mb-1">Renewal Rate</p>
               <p className={cn('text-2xl font-bold', renewalColor)}>
-                {renewalPct.toFixed(0)}%
+                {fmtPct(data?.renewal_rate_pct)}
               </p>
             </div>
             <div>
               <p className="text-kst-muted text-xs mb-1">Churn Rate</p>
               <p className="text-2xl font-bold text-kst-error">
-                {churnPct.toFixed(0)}%
+                {fmtPct(data?.churn_rate_pct)}
               </p>
-            </div>
-            <div>
-              <p className="text-kst-muted text-xs mb-1">Total Renewed</p>
-              <p className="text-kst-white text-lg font-semibold">{renewed}</p>
-            </div>
-            <div>
-              <p className="text-kst-muted text-xs mb-1">Total Churned</p>
-              <p className="text-kst-white text-lg font-semibold">{churned}</p>
             </div>
           </div>
 
-          {/* Program breakdown */}
+          {/* Row 2: Counts */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Renewed</p>
+              <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_ever_renewed)}</p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Churned</p>
+              <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_churned)}</p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Total Renewals</p>
+              <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_renewals)}</p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">No Action</p>
+              <p className={cn(
+                'text-lg font-semibold',
+                Number(data?.ended_no_action ?? 0) > 0 ? 'text-kst-gold' : 'text-kst-white'
+              )}>
+                {fmt(data?.ended_no_action)}
+              </p>
+            </div>
+          </div>
+
+          {/* Row 3: Insights (only if any data) */}
+          {(data?.avg_renewals_before_churn != null ||
+            data?.avg_days_to_churn != null ||
+            data?.churned_after_renewal_pct != null) && (
+            <div className="border-t border-white/[0.06] pt-4 mb-4">
+              <p className="text-kst-muted text-xs uppercase tracking-wider mb-3">Insights</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-kst-muted text-xs mb-1">Avg Renewals Before Churn</p>
+                  <p className="text-kst-white text-sm font-semibold">
+                    {data?.avg_renewals_before_churn != null
+                      ? Number(data.avg_renewals_before_churn).toFixed(1)
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-kst-muted text-xs mb-1">Avg Days to Churn</p>
+                  <p className="text-kst-white text-sm font-semibold">
+                    {data?.avg_days_to_churn != null
+                      ? `${Number(data.avg_days_to_churn).toFixed(0)} days`
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-kst-muted text-xs mb-1">Churned After Renewal</p>
+                  <p className="text-kst-white text-sm font-semibold">
+                    {fmtPct(data?.churned_after_renewal_pct)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Row 4: By Program */}
           <div className="border-t border-white/[0.06] pt-4 space-y-2">
             <p className="text-kst-muted text-xs uppercase tracking-wider mb-2">
               By Program
             </p>
             <div className="flex items-center justify-between text-sm">
               <span className="text-kst-muted">Educator Incubator</span>
-              <span className="text-kst-white">
-                <span className="text-kst-success">{Number(data?.ei_renewed ?? 0)} renewed</span>
+              <span>
+                <span className="text-kst-success">{fmt(data?.ei_renewed)} renewed</span>
                 {' / '}
-                <span className="text-kst-error">{Number(data?.ei_churned ?? 0)} churned</span>
+                <span className="text-kst-error">{fmt(data?.ei_churned)} churned</span>
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-kst-muted">Accelerator</span>
-              <span className="text-kst-white">
-                <span className="text-kst-success">{Number(data?.acc_renewed ?? 0)} renewed</span>
+              <span>
+                <span className="text-kst-success">{fmt(data?.acc_renewed)} renewed</span>
                 {' / '}
-                <span className="text-kst-error">{Number(data?.acc_churned ?? 0)} churned</span>
+                <span className="text-kst-error">{fmt(data?.acc_churned)} churned</span>
               </span>
             </div>
           </div>
