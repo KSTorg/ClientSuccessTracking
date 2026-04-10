@@ -105,9 +105,36 @@ export default async function MyTasksPage() {
   }
 
   const allActionable: ActionableTask[] = []
+  const allUpcoming: ActionableTask[] = []
+
+  function toActionable(t: NormTask): ActionableTask {
+    const ownerId = t.assignedTo ?? t.clientCsmId
+    const isOverdue = !t.isImported && t.dueDate != null && t.dueDate < today
+    let overdueDays = 0
+    if (isOverdue && t.dueDate) {
+      const due = new Date(t.dueDate + 'T00:00:00')
+      const now = new Date(today + 'T00:00:00')
+      overdueDays = Math.round((now.getTime() - due.getTime()) / 86400000)
+    }
+    return {
+      id: t.id,
+      clientId: t.clientId,
+      companyName: t.companyName,
+      program: t.program,
+      taskTitle: t.taskTitle,
+      stageName: t.stageName,
+      stageOrder: t.stageOrder,
+      dueDate: t.dueDate,
+      isOverdue,
+      overdueDays,
+      assignedTo: t.assignedTo,
+      ownerId: ownerId ?? null,
+      isClientTask: t.assignedTo === null,
+      isImported: t.isImported,
+    }
+  }
 
   for (const [, clientTasks] of byClient) {
-    // Sort by due_date ASC, then stage order ASC, then task order ASC
     clientTasks.sort(
       (a, b) =>
         (a.dueDate ?? '').localeCompare(b.dueDate ?? '') ||
@@ -115,35 +142,8 @@ export default async function MyTasksPage() {
         a.taskOrder - b.taskOrder
     )
 
-    const first = clientTasks[0]
-    if (!first) continue
-
-    const ownerId = first.assignedTo ?? first.clientCsmId
-
-    const isOverdue = !first.isImported && first.dueDate != null && first.dueDate < today
-    let overdueDays = 0
-    if (isOverdue && first.dueDate) {
-      const due = new Date(first.dueDate + 'T00:00:00')
-      const now = new Date(today + 'T00:00:00')
-      overdueDays = Math.round((now.getTime() - due.getTime()) / 86400000)
-    }
-
-    allActionable.push({
-      id: first.id,
-      clientId: first.clientId,
-      companyName: first.companyName,
-      program: first.program,
-      taskTitle: first.taskTitle,
-      stageName: first.stageName,
-      stageOrder: first.stageOrder,
-      dueDate: first.dueDate,
-      isOverdue,
-      overdueDays,
-      assignedTo: first.assignedTo,
-      ownerId: ownerId ?? null,
-      isClientTask: first.assignedTo === null,
-      isImported: first.isImported,
-    })
+    if (clientTasks[0]) allActionable.push(toActionable(clientTasks[0]))
+    if (clientTasks[1]) allUpcoming.push(toActionable(clientTasks[1]))
   }
 
   // Build team member map for admin "All Team" view
@@ -158,23 +158,30 @@ export default async function MyTasksPage() {
 
   // Current user's tasks
   const myTasks = allActionable.filter((t) => t.ownerId === user.id)
+  const myUpcoming = allUpcoming.filter((t) => t.ownerId === user.id)
 
   // All team grouped by member (for admin)
   const teamGrouped: TeamMemberGroup[] = []
   if (profile!.role === 'admin') {
-    const byOwner = new Map<string, ActionableTask[]>()
+    const byOwner = new Map<string, { tasks: ActionableTask[]; upcoming: ActionableTask[] }>()
     for (const t of allActionable) {
       if (!t.ownerId) continue
-      if (!byOwner.has(t.ownerId)) byOwner.set(t.ownerId, [])
-      byOwner.get(t.ownerId)!.push(t)
+      if (!byOwner.has(t.ownerId)) byOwner.set(t.ownerId, { tasks: [], upcoming: [] })
+      byOwner.get(t.ownerId)!.tasks.push(t)
     }
-    for (const [ownerId, tasks] of byOwner) {
+    for (const t of allUpcoming) {
+      if (!t.ownerId) continue
+      if (!byOwner.has(t.ownerId)) byOwner.set(t.ownerId, { tasks: [], upcoming: [] })
+      byOwner.get(t.ownerId)!.upcoming.push(t)
+    }
+    for (const [ownerId, { tasks, upcoming }] of byOwner) {
       const p = profileMap.get(ownerId)
       teamGrouped.push({
         userId: ownerId,
         fullName: p?.fullName ?? 'Unknown',
         specialty: p?.specialty ?? null,
         tasks,
+        upcoming,
       })
     }
     teamGrouped.sort((a, b) => a.fullName.localeCompare(b.fullName))
@@ -187,6 +194,7 @@ export default async function MyTasksPage() {
   return (
     <MyTasksView
       myTasks={myTasks}
+      myUpcoming={myUpcoming}
       teamGroups={teamGrouped}
       isAdmin={profile!.role === 'admin'}
       overdueCount={myOverdueCount}

@@ -29,10 +29,12 @@ export interface TeamMemberGroup {
   fullName: string
   specialty: string | null
   tasks: ActionableTask[]
+  upcoming: ActionableTask[]
 }
 
 interface MyTasksViewProps {
   myTasks: ActionableTask[]
+  myUpcoming: ActionableTask[]
   teamGroups: TeamMemberGroup[]
   isAdmin: boolean
   overdueCount: number
@@ -121,6 +123,31 @@ function TaskRow({ task }: { task: ActionableTask }) {
   )
 }
 
+function UpcomingTaskRow({ task }: { task: ActionableTask }) {
+  return (
+    <Link
+      href={`/clients/${task.clientId}`}
+      className="glass-panel-sm glass-panel-interactive flex items-center gap-3 px-4 py-3 opacity-60"
+    >
+      <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#60A5FA]/50" />
+      <div className="flex-1 min-w-0">
+        <span className="text-kst-white/70 font-medium text-sm truncate block">
+          {task.companyName}
+        </span>
+        <p className="text-kst-muted text-xs truncate mt-0.5">
+          {task.stageName} — {task.taskTitle}
+        </p>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-xs text-kst-muted">
+          {task.dueDate ? `Due ${fmtDate(task.dueDate)}` : 'No due date'}
+        </p>
+      </div>
+      <ChevronRight size={14} className="text-kst-muted/30 shrink-0" />
+    </Link>
+  )
+}
+
 function TaskSection({
   title,
   dotColor,
@@ -143,6 +170,32 @@ function TaskSection({
       <div className="glass-panel p-3 space-y-2">
         {tasks.map((t) => (
           <TaskRow key={t.id} task={t} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function UpcomingSection({ tasks }: { tasks: ActionableTask[] }) {
+  if (tasks.length === 0) return null
+  const sorted = [...tasks].sort((a, b) => {
+    if (!a.dueDate && !b.dueDate) return 0
+    if (!a.dueDate) return 1
+    if (!b.dueDate) return -1
+    return a.dueDate.localeCompare(b.dueDate)
+  })
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-2.5 h-2.5 rounded-full bg-[#60A5FA]/50" />
+        <h2 className="text-kst-white font-semibold text-sm">
+          Upcoming
+          <span className="text-kst-muted font-normal ml-2">({sorted.length})</span>
+        </h2>
+      </div>
+      <div className="glass-panel p-3 space-y-2">
+        {sorted.map((t) => (
+          <UpcomingTaskRow key={t.id} task={t} />
         ))}
       </div>
     </section>
@@ -173,6 +226,7 @@ function PersonGroup({ group }: { group: TeamMemberGroup }) {
       <div className="space-y-4">
         <TaskSection title="Overdue" dotColor="bg-red-400" tasks={overdue} />
         <TaskSection title="To Do" dotColor="bg-kst-gold" tasks={todo} />
+        <UpcomingSection tasks={group.upcoming} />
         {overdue.length === 0 && todo.length === 0 && (
           <div className="glass-panel p-6 text-center">
             <CheckCircle size={20} className="text-green-400 mx-auto mb-2" />
@@ -186,6 +240,7 @@ function PersonGroup({ group }: { group: TeamMemberGroup }) {
 
 export function MyTasksView({
   myTasks,
+  myUpcoming,
   teamGroups,
   isAdmin,
   overdueCount,
@@ -266,6 +321,7 @@ export function MyTasksView({
                   </div>
                 </section>
               )}
+              <UpcomingSection tasks={myUpcoming} />
             </div>
           )}
         </>
