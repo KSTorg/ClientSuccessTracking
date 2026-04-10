@@ -15,7 +15,7 @@ export default async function ClientsPage() {
   // `csm:profiles!assigned_csm(id, full_name)` which silently returned an
   // empty list whenever PostgREST couldn't resolve the FK hint. We now join
   // CSM names client-side using the separate csms query below.
-  const [clientsRes, tasksRes, csmsRes] = await Promise.all([
+  const [clientsRes, tasksRes, csmsRes, subsRes] = await Promise.all([
     supabase.from('clients').select('*').order('created_at', { ascending: false }),
     supabase.from('client_tasks').select('client_id, status'),
     supabase
@@ -23,6 +23,10 @@ export default async function ClientsPage() {
       .select('id, full_name, specialty')
       .in('role', ['admin', 'csm'])
       .order('full_name'),
+    supabase
+      .from('client_subscriptions')
+      .select('client_id')
+      .eq('status', 'active'),
   ])
 
   const clients = (clientsRes.data ?? []) as Client[]
@@ -56,5 +60,9 @@ export default async function ClientsPage() {
     }
   })
 
-  return <ClientsView clients={clientsWithStats} csms={csms} />
+  const clientsWithActiveSubs = [
+    ...new Set(((subsRes.data ?? []) as { client_id: string }[]).map((r) => r.client_id))
+  ]
+
+  return <ClientsView clients={clientsWithStats} csms={csms} clientsWithSubs={clientsWithActiveSubs} />
 }

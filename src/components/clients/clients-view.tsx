@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Search, Users } from 'lucide-react'
+import { DollarSign, Plus, Search, Users } from 'lucide-react'
 import { AddClientModal } from '@/components/AddClientModal'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { ProgramBadge } from '@/components/clients/program-badge'
@@ -19,6 +19,7 @@ import {
 interface ClientsViewProps {
   clients: ClientWithCsmAndStats[]
   csms: CsmOption[]
+  clientsWithSubs?: string[]
 }
 
 type StatusFilter = ClientStatus | 'all'
@@ -38,7 +39,7 @@ const PROGRAM_FILTERS: { value: ProgramFilter; label: string }[] = [
   { value: 'accelerator', label: PROGRAM_LABELS.accelerator },
 ]
 
-export function ClientsView({ clients, csms }: ClientsViewProps) {
+export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all')
@@ -219,6 +220,9 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span className="truncate">{c.company_name}</span>
+                          {clientsWithSubs?.includes(c.id) && (
+                            <DollarSign size={12} className="text-kst-gold shrink-0" />
+                          )}
                           {c.is_imported && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted shrink-0">
                               imported

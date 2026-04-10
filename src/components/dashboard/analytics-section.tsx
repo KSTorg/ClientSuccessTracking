@@ -92,6 +92,20 @@ export interface RetentionData {
   acc_churned: number | null
 }
 
+export interface MrrData {
+  total_mrr: number | null
+  active_subscriptions: number | null
+  clients_with_subs: number | null
+  avg_mrr_per_client: number | null
+}
+
+export interface ServicePopularityRow {
+  service_name: string | null
+  category: string | null
+  active_count: number | null
+  mrr_contribution: number | null
+}
+
 interface AnalyticsSectionProps {
   globalTotals: GlobalTotals | null
   weeklyTrend: WeeklyTrendPoint[]
@@ -100,6 +114,8 @@ interface AnalyticsSectionProps {
   teamPerformance: TeamPerformanceRow[]
   timeToLaunch: ClientTimeToLaunchRow[]
   retention: RetentionData | null
+  mrr: MrrData | null
+  servicePopularity: ServicePopularityRow[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -114,6 +130,8 @@ export function AnalyticsSection({
   teamPerformance,
   timeToLaunch,
   retention,
+  mrr,
+  servicePopularity,
 }: AnalyticsSectionProps) {
   const hasAnyData =
     !!globalTotals ||
@@ -161,6 +179,12 @@ export function AnalyticsSection({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <TimeToLaunchPanel rows={timeToLaunch} />
         <RetentionPanel data={retention} />
+      </div>
+
+      {/* G) MRR + Service Popularity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <MrrPanel data={mrr} />
+        <ServicePopularityPanel rows={servicePopularity} />
       </div>
     </section>
   )
@@ -723,6 +747,125 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
             </div>
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// H) MRR
+// ───────────────────────────────────────────────────────────────────────────
+
+function MrrPanel({ data }: { data: MrrData | null }) {
+  const totalMrr = Number(data?.total_mrr ?? 0)
+  const activeSubs = Number(data?.active_subscriptions ?? 0)
+  const clientsWithSubs = Number(data?.clients_with_subs ?? 0)
+  const avgMrr = Number(data?.avg_mrr_per_client ?? 0)
+
+  return (
+    <div
+      className="glass-panel p-6 md:p-8"
+      style={
+        totalMrr > 0
+          ? {
+              borderColor: 'rgba(201, 168, 76, 0.25)',
+              background:
+                'linear-gradient(135deg, rgba(201,168,76,0.06) 0%, rgba(255,255,255,0.03) 50%, rgba(201,168,76,0.03) 100%)',
+            }
+          : undefined
+      }
+    >
+      <div className="flex items-center gap-2 mb-5">
+        <Zap size={16} className="text-kst-gold" />
+        <h3 className="text-kst-white font-semibold">MRR</h3>
+      </div>
+
+      {activeSubs === 0 ? (
+        <p className="text-kst-muted text-sm py-6 text-center">
+          No active subscriptions yet.
+        </p>
+      ) : (
+        <>
+          <p className="text-kst-gold text-4xl font-bold tracking-tight mb-4">
+            ${Math.round(totalMrr).toLocaleString()}
+            <span className="text-lg font-normal text-kst-muted">/mo</span>
+          </p>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Active Subs</p>
+              <p className="text-kst-white text-lg font-semibold">{activeSubs}</p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Clients</p>
+              <p className="text-kst-white text-lg font-semibold">{clientsWithSubs}</p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Avg/Client</p>
+              <p className="text-kst-white text-lg font-semibold">
+                ${Math.round(avgMrr).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// I) Service Popularity
+// ───────────────────────────────────────────────────────────────────────────
+
+const CAT_LABELS: Record<string, string> = {
+  monthly: 'Monthly',
+  combo: 'Combo',
+  one_time: 'One-time',
+  standalone: 'Standalone',
+}
+
+function ServicePopularityPanel({ rows }: { rows: ServicePopularityRow[] }) {
+  return (
+    <div className="glass-panel p-6 md:p-8">
+      <div className="flex items-center gap-2 mb-5">
+        <BarChart3 size={16} className="text-kst-gold" />
+        <h3 className="text-kst-white font-semibold">Service Popularity</h3>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-kst-muted text-sm py-6 text-center">
+          No subscriptions yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
+                <th className="pb-2 font-medium">Service</th>
+                <th className="pb-2 font-medium text-right">Active</th>
+                <th className="pb-2 font-medium text-right">MRR</th>
+                <th className="pb-2 font-medium text-right">Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className="border-b border-white/[0.04] last:border-b-0">
+                  <td className="py-2.5 text-kst-white truncate max-w-[160px]">
+                    {r.service_name ?? '—'}
+                  </td>
+                  <td className="py-2.5 text-kst-white text-right">
+                    {Number(r.active_count ?? 0)}
+                  </td>
+                  <td className="py-2.5 text-kst-gold text-right font-medium">
+                    ${Math.round(Number(r.mrr_contribution ?? 0)).toLocaleString()}
+                  </td>
+                  <td className="py-2.5 text-kst-muted text-right text-xs">
+                    {CAT_LABELS[r.category ?? ''] ?? r.category ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

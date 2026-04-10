@@ -23,6 +23,7 @@ import {
   type ClientContact,
 } from '@/components/clients/contacts-section'
 import { ClientTeamSection } from '@/components/clients/client-team-section'
+import { SubscriptionsSection } from '@/components/clients/subscriptions-section'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { ProgramBadge } from '@/components/clients/program-badge'
 import type { Role } from '@/lib/supabase/get-user'
@@ -201,64 +202,6 @@ export function ClientDetailView({
   const [notesOpen, setNotesOpen] = useState(true)
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
-
-  const [renewOpen, setRenewOpen] = useState(false)
-  const [renewDate, setRenewDate] = useState('')
-  const [renewing, setRenewing] = useState(false)
-
-  function openRenewModal() {
-    const months = client.program === 'accelerator' ? 3 : 4
-    const d = new Date()
-    d.setMonth(d.getMonth() + months)
-    setRenewDate(d.toISOString().slice(0, 10))
-    setRenewOpen(true)
-  }
-
-  async function handleRenew() {
-    if (!renewDate) return
-    setRenewing(true)
-    const prevStatus = status
-    const prevEndDate = programEndDate
-
-    // Log history
-    await supabase.from('client_status_history').insert({
-      client_id: client.id,
-      old_status: prevStatus,
-      new_status: 'launched',
-      program_end_date_at_change: prevEndDate,
-    })
-
-    const updates: Record<string, unknown> = {
-      status: 'launched',
-      program_end_date: renewDate,
-      times_renewed: (client.times_renewed ?? 0) + 1,
-    }
-    if (prevStatus === 'churned') updates.churned_at = null
-
-    const { error } = await supabase
-      .from('clients')
-      .update(updates)
-      .eq('id', client.id)
-    setRenewing(false)
-    if (error) {
-      toast.error(`Could not renew: ${error.message}`)
-      return
-    }
-
-    setStatus('launched')
-    setProgramEndDate(renewDate)
-    setRenewOpen(false)
-    toast.success(`Client renewed — program extended to ${formatDate(renewDate)}`)
-
-    // Fire-and-forget Discord notification
-    fetch('/api/notifications/client-event', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'renewed', clientId: client.id }),
-    }).catch(() => {})
-
-    router.refresh()
-  }
 
   // Status history
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -465,18 +408,6 @@ export function ClientDetailView({
               ×{client.times_renewed} renewed
             </span>
           )}
-          <div className="ml-auto">
-            {status !== 'onboarding' && (
-              <button
-                type="button"
-                onClick={openRenewModal}
-                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-kst-gold/40 text-kst-gold text-xs font-medium hover:bg-kst-gold/10 transition-colors"
-              >
-                <RefreshCw size={12} />
-                Renew
-              </button>
-            )}
-          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div>
@@ -674,6 +605,9 @@ export function ClientDetailView({
         )}
       </div>
 
+      {/* Subscriptions — team only */}
+      <SubscriptionsSection clientId={client.id} />
+
       {/* Notes */}
       <div className="glass-panel p-6 mb-6">
         <button
@@ -779,56 +713,6 @@ export function ClientDetailView({
           </div>
         )}
       </div>
-
-      {/* Renew Modal */}
-      {renewOpen && (
-        <div
-          className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
-          onClick={() => setRenewOpen(false)}
-        >
-          <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
-            <div
-              className="glass-panel relative w-full max-w-[400px] p-7"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-kst-white text-lg font-semibold mb-4">
-                Renew {client.company_name}
-              </h2>
-              {programEndDate && (
-                <p className="text-kst-muted text-sm mb-4">
-                  Current end date: <span className="text-kst-white">{formatDate(programEndDate)}</span>
-                </p>
-              )}
-              <label className="flex flex-col gap-1.5 mb-6">
-                <span className="text-xs uppercase tracking-wider text-kst-muted">New End Date</span>
-                <input
-                  type="date"
-                  value={renewDate}
-                  onChange={(e) => setRenewDate(e.target.value)}
-                  className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-                />
-              </label>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRenewOpen(false)}
-                  className="px-4 h-10 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={renewing || !renewDate}
-                  onClick={handleRenew}
-                  className="px-5 h-10 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
-                >
-                  {renewing ? 'Renewing...' : 'Confirm Renewal'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Danger zone — admin only */}
       {isAdmin && (

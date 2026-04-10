@@ -17,7 +17,9 @@ import {
   type ClientMetricsRow,
   type ClientTimeToLaunchRow,
   type GlobalTotals,
+  type MrrData,
   type RetentionData,
+  type ServicePopularityRow,
   type TaskPerformanceRow,
   type TeamPerformanceRow,
 } from '@/components/dashboard/analytics-section'
@@ -90,6 +92,8 @@ export default async function DashboardPage() {
     teamPerfRes,
     clientOverviewRes,
     retentionRes,
+    mrrRes,
+    servicePopRes,
   ] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase
@@ -154,6 +158,12 @@ export default async function DashboardPage() {
       .not('launched_date', 'is', null)
       .order('launched_date', { ascending: false }),
     supabase.from('analytics_retention').select('*').maybeSingle(),
+    supabase.from('analytics_mrr').select('*').maybeSingle(),
+    supabase
+      .from('analytics_service_popularity')
+      .select('*')
+      .gt('active_count', 0)
+      .order('active_count', { ascending: false }),
   ])
 
   const totalClients = totalRes.count ?? 0
@@ -210,6 +220,8 @@ export default async function DashboardPage() {
     (r) => !importedNames.has(r.company_name ?? '')
   )
   const retention = (retentionRes.data ?? null) as RetentionData | null
+  const mrrData = (mrrRes.data ?? null) as MrrData | null
+  const servicePopularity = (servicePopRes.data ?? []) as ServicePopularityRow[]
 
   const name = profile?.full_name ?? 'there'
 
@@ -355,6 +367,8 @@ export default async function DashboardPage() {
         teamPerformance={teamPerformance}
         timeToLaunch={timeToLaunch}
         retention={retention}
+        mrr={mrrData}
+        servicePopularity={servicePopularity}
       />
     </div>
   )
