@@ -90,8 +90,9 @@ export interface RetentionData {
 
 export interface MrrData {
   total_mrr: number | null
-  active_subscriptions: number | null
-  clients_with_subs: number | null
+  clients_with_active_subs: number | null
+  total_active_subs: number | null
+  avg_mrr_per_sub: number | null
   avg_mrr_per_client: number | null
 }
 
@@ -753,9 +754,9 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
 
 function MrrPanel({ data }: { data: MrrData | null }) {
   const totalMrr = Number(data?.total_mrr ?? 0)
-  const activeSubs = Number(data?.active_subscriptions ?? 0)
-  const clientsWithSubs = Number(data?.clients_with_subs ?? 0)
-  const avgMrr = Number(data?.avg_mrr_per_client ?? 0)
+  const activeSubs = Number(data?.total_active_subs ?? 0)
+  const clientsWithSubs = Number(data?.clients_with_active_subs ?? 0)
+  const avgMrrClient = Number(data?.avg_mrr_per_client ?? 0)
 
   return (
     <div
@@ -775,7 +776,7 @@ function MrrPanel({ data }: { data: MrrData | null }) {
         <h3 className="text-kst-white font-semibold">MRR</h3>
       </div>
 
-      {activeSubs === 0 ? (
+      {totalMrr === 0 ? (
         <p className="text-kst-muted text-sm py-6 text-center">
           No active subscriptions yet.
         </p>
@@ -797,7 +798,7 @@ function MrrPanel({ data }: { data: MrrData | null }) {
             <div>
               <p className="text-kst-muted text-xs mb-1">Avg/Client</p>
               <p className="text-kst-white text-lg font-semibold">
-                ${Math.round(avgMrr).toLocaleString()}
+                ${Math.round(avgMrrClient).toLocaleString()}
               </p>
             </div>
           </div>
