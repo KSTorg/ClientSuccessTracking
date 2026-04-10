@@ -64,6 +64,15 @@ export default async function DashboardPage() {
   in7.setDate(in7.getDate() + 7)
   const in7Iso = in7.toISOString().slice(0, 10)
 
+  // Pre-fetch imported clients to exclude from metrics
+  const { data: importedClients } = await supabase
+    .from('clients')
+    .select('id, company_name')
+    .eq('is_imported', true)
+  const importedRows_ = (importedClients ?? []) as { id: string; company_name: string }[]
+  const importedIds = importedRows_.map((r) => r.id)
+  const importedNames = new Set(importedRows_.map((r) => r.company_name))
+
   const [
     totalRes,
     onboardingRes,
@@ -99,11 +108,17 @@ export default async function DashboardPage() {
       .select('id, company_name, launched_date')
       .not('launched_date', 'is', null)
       .order('launched_date', { ascending: false }),
-    supabase
-      .from('client_tasks')
-      .select('*', { count: 'exact', head: true })
-      .lt('due_date', todayIso)
-      .neq('status', 'completed'),
+    (() => {
+      let q = supabase
+        .from('client_tasks')
+        .select('*', { count: 'exact', head: true })
+        .lt('due_date', todayIso)
+        .neq('status', 'completed')
+      if (importedIds.length > 0) {
+        q = q.not('client_id', 'in', `(${importedIds.join(',')})`)
+      }
+      return q
+    })(),
     supabase
       .from('clients')
       .select('*', { count: 'exact', head: true })
@@ -188,13 +203,6 @@ export default async function DashboardPage() {
   const taskBottlenecks = (taskPerfRes.data ?? []) as TaskPerformanceRow[]
   const teamPerformance = (teamPerfRes.data ?? []) as TeamPerformanceRow[]
   // Filter imported clients from time-to-launch analytics
-  const { data: importedRows } = await supabase
-    .from('clients')
-    .select('company_name')
-    .eq('is_imported', true)
-  const importedNames = new Set(
-    ((importedRows ?? []) as { company_name: string }[]).map((r) => r.company_name)
-  )
   const timeToLaunch = ((clientOverviewRes.data ?? []) as ClientTimeToLaunchRow[]).filter(
     (r) => !importedNames.has(r.company_name ?? '')
   )
