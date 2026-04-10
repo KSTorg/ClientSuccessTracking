@@ -74,19 +74,23 @@ export async function getMyTaskCounts(
     })
   }
 
-  // Group by client+stage, find first incomplete per stage
-  const byClientStage = new Map<string, Norm[]>()
+  // Group by client, find single first incomplete task per client
+  const byClient = new Map<string, Norm[]>()
   for (const t of norms) {
-    const key = `${t.clientId}|${t.stageId}`
-    if (!byClientStage.has(key)) byClientStage.set(key, [])
-    byClientStage.get(key)!.push(t)
+    if (!byClient.has(t.clientId)) byClient.set(t.clientId, [])
+    byClient.get(t.clientId)!.push(t)
   }
 
   let overdue = 0
   let total = 0
 
-  for (const [, tasks] of byClientStage) {
-    tasks.sort((a, b) => a.taskOrder - b.taskOrder)
+  for (const [, tasks] of byClient) {
+    tasks.sort(
+      (a, b) =>
+        (a.dueDate ?? '').localeCompare(b.dueDate ?? '') ||
+        a.stageOrder - b.stageOrder ||
+        a.taskOrder - b.taskOrder
+    )
     const first = tasks[0]!
     const ownerId = first.assignedTo ?? first.csmId
     if (ownerId !== userId) continue

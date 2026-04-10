@@ -97,7 +97,7 @@ export default async function MyTasksPage() {
     })
   }
 
-  // Group by client, then find first incomplete task per stage
+  // Group by client, find single first incomplete task per client
   const byClient = new Map<string, NormTask[]>()
   for (const t of normTasks) {
     if (!byClient.has(t.clientId)) byClient.set(t.clientId, [])
@@ -107,48 +107,43 @@ export default async function MyTasksPage() {
   const allActionable: ActionableTask[] = []
 
   for (const [, clientTasks] of byClient) {
-    // Group by stage
-    const byStage = new Map<string, NormTask[]>()
-    for (const t of clientTasks) {
-      if (!byStage.has(t.stageId)) byStage.set(t.stageId, [])
-      byStage.get(t.stageId)!.push(t)
+    // Sort by due_date ASC, then stage order ASC, then task order ASC
+    clientTasks.sort(
+      (a, b) =>
+        (a.dueDate ?? '').localeCompare(b.dueDate ?? '') ||
+        a.stageOrder - b.stageOrder ||
+        a.taskOrder - b.taskOrder
+    )
+
+    const first = clientTasks[0]
+    if (!first) continue
+
+    const ownerId = first.assignedTo ?? first.clientCsmId
+
+    const isOverdue = !first.isImported && first.dueDate != null && first.dueDate < today
+    let overdueDays = 0
+    if (isOverdue && first.dueDate) {
+      const due = new Date(first.dueDate + 'T00:00:00')
+      const now = new Date(today + 'T00:00:00')
+      overdueDays = Math.round((now.getTime() - due.getTime()) / 86400000)
     }
 
-    for (const [, stageTasks] of byStage) {
-      // Sort by task order_index
-      stageTasks.sort((a, b) => a.taskOrder - b.taskOrder)
-      // First incomplete task in this stage is the actionable one
-      const first = stageTasks[0]
-      if (!first) continue
-
-      // Determine who owns this task
-      const ownerId = first.assignedTo ?? first.clientCsmId
-
-      const isOverdue = !first.isImported && first.dueDate != null && first.dueDate < today
-      let overdueDays = 0
-      if (isOverdue && first.dueDate) {
-        const due = new Date(first.dueDate + 'T00:00:00')
-        const now = new Date(today + 'T00:00:00')
-        overdueDays = Math.round((now.getTime() - due.getTime()) / 86400000)
-      }
-
-      allActionable.push({
-        id: first.id,
-        clientId: first.clientId,
-        companyName: first.companyName,
-        program: first.program,
-        taskTitle: first.taskTitle,
-        stageName: first.stageName,
-        stageOrder: first.stageOrder,
-        dueDate: first.dueDate,
-        isOverdue,
-        overdueDays,
-        assignedTo: first.assignedTo,
-        ownerId: ownerId ?? null,
-        isClientTask: first.assignedTo === null,
-        isImported: first.isImported,
-      })
-    }
+    allActionable.push({
+      id: first.id,
+      clientId: first.clientId,
+      companyName: first.companyName,
+      program: first.program,
+      taskTitle: first.taskTitle,
+      stageName: first.stageName,
+      stageOrder: first.stageOrder,
+      dueDate: first.dueDate,
+      isOverdue,
+      overdueDays,
+      assignedTo: first.assignedTo,
+      ownerId: ownerId ?? null,
+      isClientTask: first.assignedTo === null,
+      isImported: first.isImported,
+    })
   }
 
   // Build team member map for admin "All Team" view
