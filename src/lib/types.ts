@@ -1,11 +1,10 @@
-export type ClientStatus = 'onboarding' | 'launched' | 'paused' | 'churned' | 'renewed'
+export type ClientStatus = 'onboarding' | 'launched' | 'paused' | 'churned'
 
 export const CLIENT_STATUSES: ClientStatus[] = [
   'onboarding',
   'launched',
   'paused',
   'churned',
-  'renewed',
 ]
 
 export type Program = 'educator_incubator' | 'accelerator'
@@ -74,6 +73,8 @@ export interface Client {
   launched_date: string | null
   program_end_date: string | null
   is_imported: boolean
+  times_renewed: number
+  churned_at: string | null
   notes: string | null
   user_id: string | null
   created_at: string

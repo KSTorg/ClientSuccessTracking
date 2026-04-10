@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Edit3,
   Lock,
+  RefreshCw,
   Rocket,
   Trash2,
 } from 'lucide-react'
@@ -48,7 +49,6 @@ const STATUS_DOT: Record<ClientStatus, string> = {
   launched: 'bg-kst-success',
   paused: 'bg-white/50',
   churned: 'bg-kst-error',
-  renewed: 'bg-[#60A5FA]',
 }
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
@@ -56,7 +56,6 @@ const STATUS_LABEL: Record<ClientStatus, string> = {
   launched: 'Launched',
   paused: 'Paused',
   churned: 'Churned',
-  renewed: 'Renewed',
 }
 
 type Tab = 'setup' | 'success'
@@ -203,6 +202,85 @@ export function ClientDetailView({
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
 
+  const [renewOpen, setRenewOpen] = useState(false)
+  const [renewDate, setRenewDate] = useState('')
+  const [renewing, setRenewing] = useState(false)
+
+  function openRenewModal() {
+    const months = client.program === 'accelerator' ? 3 : 4
+    const d = new Date()
+    d.setMonth(d.getMonth() + months)
+    setRenewDate(d.toISOString().slice(0, 10))
+    setRenewOpen(true)
+  }
+
+  async function handleRenew() {
+    if (!renewDate) return
+    setRenewing(true)
+    const prevStatus = status
+    const prevEndDate = programEndDate
+
+    // Log history
+    await supabase.from('client_status_history').insert({
+      client_id: client.id,
+      old_status: prevStatus,
+      new_status: 'launched',
+      program_end_date_at_change: prevEndDate,
+    })
+
+    const updates: Record<string, unknown> = {
+      status: 'launched',
+      program_end_date: renewDate,
+      times_renewed: (client.times_renewed ?? 0) + 1,
+    }
+    if (prevStatus === 'churned') updates.churned_at = null
+
+    const { error } = await supabase
+      .from('clients')
+      .update(updates)
+      .eq('id', client.id)
+    setRenewing(false)
+    if (error) {
+      toast.error(`Could not renew: ${error.message}`)
+      return
+    }
+
+    setStatus('launched')
+    setProgramEndDate(renewDate)
+    setRenewOpen(false)
+    toast.success(`Client renewed — program extended to ${formatDate(renewDate)}`)
+
+    // Fire-and-forget Discord notification
+    fetch('/api/notifications/client-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'renewed', clientId: client.id }),
+    }).catch(() => {})
+
+    router.refresh()
+  }
+
+  // Status history
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyRows, setHistoryRows] = useState<Array<{
+    created_at: string
+    old_status: string
+    new_status: string
+    program_end_date_at_change: string | null
+  }>>([])
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+
+  async function loadHistory() {
+    if (historyLoaded) return
+    const { data } = await supabase
+      .from('client_status_history')
+      .select('created_at, old_status, new_status, program_end_date_at_change')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: false })
+    setHistoryRows((data ?? []) as typeof historyRows)
+    setHistoryLoaded(true)
+  }
+
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -211,18 +289,37 @@ export function ClientDetailView({
     const prev = status
     setStatus(next)
     setSavingField('status')
+
+    const updates: Record<string, unknown> = { status: next }
+    if (next === 'churned') updates.churned_at = new Date().toISOString().slice(0, 10)
+    if (prev === 'churned' && next !== 'churned') updates.churned_at = null
+
     const { error } = await supabase
       .from('clients')
-      .update({ status: next })
+      .update(updates)
       .eq('id', client.id)
     setSavingField(null)
     if (error) {
       setStatus(prev)
       toast.error(`Could not update status: ${error.message}`)
-    } else {
-      toast.success('Status updated')
-      router.refresh()
+      return
     }
+
+    // Log status change history (fire-and-forget)
+    supabase
+      .from('client_status_history')
+      .insert({
+        client_id: client.id,
+        old_status: prev,
+        new_status: next,
+        program_end_date_at_change: programEndDate,
+      })
+      .then(({ error: logErr }) => {
+        if (logErr) console.warn('[status history] insert failed:', logErr.message)
+      })
+
+    toast.success('Status updated')
+    router.refresh()
   }
 
   async function handleSaveNotes() {
@@ -363,6 +460,23 @@ export function ClientDetailView({
             Program
           </span>
           <ProgramBadge program={client.program} />
+          {client.times_renewed > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted">
+              ×{client.times_renewed} renewed
+            </span>
+          )}
+          <div className="ml-auto">
+            {status !== 'onboarding' && (
+              <button
+                type="button"
+                onClick={openRenewModal}
+                className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-kst-gold/40 text-kst-gold text-xs font-medium hover:bg-kst-gold/10 transition-colors"
+              >
+                <RefreshCw size={12} />
+                Renew
+              </button>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div>
@@ -616,6 +730,105 @@ export function ClientDetailView({
         }
         teamMembers={csms}
       />
+
+      {/* Status History */}
+      <div className="glass-panel-sm p-5 mb-6">
+        <button
+          type="button"
+          onClick={() => { setHistoryOpen((v) => !v); loadHistory() }}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <div className="flex items-center gap-2">
+            <RefreshCw size={14} className="text-kst-gold" />
+            <h3 className="text-kst-white font-semibold text-sm">Status History</h3>
+          </div>
+          <ChevronDown
+            size={16}
+            className={cn('text-kst-muted transition-transform', historyOpen && 'rotate-180')}
+          />
+        </button>
+        {historyOpen && (
+          <div className="mt-4">
+            {historyRows.length === 0 ? (
+              <p className="text-kst-muted text-sm py-3 text-center">No status changes recorded.</p>
+            ) : (
+              <ul className="divide-y divide-white/[0.06]">
+                {historyRows.map((h, i) => {
+                  const isRenewal = h.new_status === 'launched' && h.program_end_date_at_change
+                  return (
+                    <li key={i} className="flex items-center gap-3 py-2.5 text-sm">
+                      <span className="text-kst-muted text-xs shrink-0 w-20">
+                        {formatDate(h.created_at)}
+                      </span>
+                      <span className="text-kst-white flex-1">
+                        {isRenewal ? (
+                          <>Renewal — extended to {formatDate(h.program_end_date_at_change)}</>
+                        ) : (
+                          <>
+                            <span className="capitalize">{h.old_status}</span>
+                            {' → '}
+                            <span className="capitalize">{h.new_status}</span>
+                          </>
+                        )}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Renew Modal */}
+      {renewOpen && (
+        <div
+          className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
+          onClick={() => setRenewOpen(false)}
+        >
+          <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
+            <div
+              className="glass-panel relative w-full max-w-[400px] p-7"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-kst-white text-lg font-semibold mb-4">
+                Renew {client.company_name}
+              </h2>
+              {programEndDate && (
+                <p className="text-kst-muted text-sm mb-4">
+                  Current end date: <span className="text-kst-white">{formatDate(programEndDate)}</span>
+                </p>
+              )}
+              <label className="flex flex-col gap-1.5 mb-6">
+                <span className="text-xs uppercase tracking-wider text-kst-muted">New End Date</span>
+                <input
+                  type="date"
+                  value={renewDate}
+                  onChange={(e) => setRenewDate(e.target.value)}
+                  className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                />
+              </label>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRenewOpen(false)}
+                  className="px-4 h-10 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={renewing || !renewDate}
+                  onClick={handleRenew}
+                  className="px-5 h-10 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
+                >
+                  {renewing ? 'Renewing...' : 'Confirm Renewal'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Danger zone — admin only */}
       {isAdmin && (

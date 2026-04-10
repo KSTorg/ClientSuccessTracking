@@ -6,7 +6,6 @@ const STYLES: Record<ClientStatus, string> = {
   launched: 'border-kst-success/60 text-kst-success bg-kst-success/10',
   paused: 'border-white/15 text-white/50 bg-white/[0.04]',
   churned: 'border-kst-error/60 text-kst-error bg-kst-error/10',
-  renewed: 'border-[rgba(96,165,250,0.4)] text-[#60A5FA] bg-[rgba(96,165,250,0.15)]',
 }
 
 const LABELS: Record<ClientStatus, string> = {
@@ -14,7 +13,6 @@ const LABELS: Record<ClientStatus, string> = {
   launched: 'Launched',
   paused: 'Paused',
   churned: 'Churned',
-  renewed: 'Renewed',
 }
 
 export function StatusBadge({
