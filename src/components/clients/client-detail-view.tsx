@@ -120,24 +120,46 @@ export function ClientDetailView({
     []
   )
 
+  // ── Inline date editors (staged value + explicit save) ──────────────
   const [joinedDate, setJoinedDate] = useState<string>(
     (client.joined_date ?? client.created_at).slice(0, 10)
   )
   const [editingJoined, setEditingJoined] = useState(false)
   const [savingJoined, setSavingJoined] = useState(false)
+  const [stagedJoined, setStagedJoined] = useState(joinedDate)
+
+  async function saveJoinedDate() {
+    if (!stagedJoined) return
+    const prev = joinedDate
+    setJoinedDate(stagedJoined)
+    setSavingJoined(true)
+    const { error } = await supabase
+      .from('clients')
+      .update({ joined_date: stagedJoined })
+      .eq('id', client.id)
+    setSavingJoined(false)
+    setEditingJoined(false)
+    if (error) {
+      setJoinedDate(prev)
+      toast.error(`Could not update joined date: ${error.message}`)
+      return
+    }
+    router.refresh()
+  }
 
   const [editingLaunched, setEditingLaunched] = useState(false)
   const [savingLaunched, setSavingLaunched] = useState(false)
+  const [stagedLaunched, setStagedLaunched] = useState(launchedDate ?? '')
 
-  async function handleLaunchedDateEdit(next: string) {
-    if (!next) return
+  async function saveLaunchedDate() {
+    if (!stagedLaunched) return
     const prev = launchedDate
-    setLaunchedDate(next)
+    setLaunchedDate(stagedLaunched)
     setStatus('launched')
     setSavingLaunched(true)
     const { error } = await supabase
       .from('clients')
-      .update({ launched_date: next, status: 'launched' })
+      .update({ launched_date: stagedLaunched, status: 'launched' })
       .eq('id', client.id)
     setSavingLaunched(false)
     setEditingLaunched(false)
@@ -150,39 +172,21 @@ export function ClientDetailView({
     router.refresh()
   }
 
-  async function handleJoinedDateChange(next: string) {
-    if (!next) return
-    const prev = joinedDate
-    setJoinedDate(next)
-    setSavingJoined(true)
-    const { error } = await supabase
-      .from('clients')
-      .update({ joined_date: next })
-      .eq('id', client.id)
-    setSavingJoined(false)
-    setEditingJoined(false)
-    if (error) {
-      setJoinedDate(prev)
-      alert(`Could not update joined date: ${error.message}`)
-      return
-    }
-    router.refresh()
-  }
-
   const [programEndDate, setProgramEndDate] = useState<string | null>(
     client.program_end_date ?? null
   )
   const [editingEndDate, setEditingEndDate] = useState(false)
   const [savingEndDate, setSavingEndDate] = useState(false)
+  const [stagedEndDate, setStagedEndDate] = useState(programEndDate ?? '')
 
-  async function handleEndDateChange(next: string) {
-    if (!next) return
+  async function saveEndDate() {
+    if (!stagedEndDate) return
     const prev = programEndDate
-    setProgramEndDate(next)
+    setProgramEndDate(stagedEndDate)
     setSavingEndDate(true)
     const { error } = await supabase
       .from('clients')
-      .update({ program_end_date: next })
+      .update({ program_end_date: stagedEndDate })
       .eq('id', client.id)
     setSavingEndDate(false)
     setEditingEndDate(false)
@@ -377,19 +381,27 @@ export function ClientDetailView({
               Joined Date
             </p>
             {editingJoined ? (
-              <input
-                type="date"
-                value={joinedDate}
-                autoFocus
-                disabled={savingJoined}
-                onChange={(e) => handleJoinedDateChange(e.target.value)}
-                onBlur={() => setEditingJoined(false)}
-                className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={stagedJoined}
+                  autoFocus
+                  disabled={savingJoined}
+                  onChange={(e) => setStagedJoined(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveJoinedDate()
+                    if (e.key === 'Escape') { setStagedJoined(joinedDate); setEditingJoined(false) }
+                  }}
+                  className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                />
+                <button type="button" disabled={savingJoined} onClick={saveJoinedDate} className="h-8 px-2.5 rounded-lg bg-kst-gold/20 text-kst-gold text-xs font-medium hover:bg-kst-gold/30 transition-colors disabled:opacity-50">
+                  {savingJoined ? '...' : 'Save'}
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => setEditingJoined(true)}
+                onClick={() => { setStagedJoined(joinedDate); setEditingJoined(true) }}
                 className="text-kst-white text-sm h-10 flex items-center hover:text-kst-gold transition-colors"
               >
                 {formatDate(joinedDate)}
@@ -402,19 +414,27 @@ export function ClientDetailView({
               Launched Date
             </p>
             {editingLaunched ? (
-              <input
-                type="date"
-                value={launchedDate ?? ''}
-                autoFocus
-                disabled={savingLaunched}
-                onChange={(e) => handleLaunchedDateEdit(e.target.value)}
-                onBlur={() => setEditingLaunched(false)}
-                className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={stagedLaunched}
+                  autoFocus
+                  disabled={savingLaunched}
+                  onChange={(e) => setStagedLaunched(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveLaunchedDate()
+                    if (e.key === 'Escape') { setStagedLaunched(launchedDate ?? ''); setEditingLaunched(false) }
+                  }}
+                  className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                />
+                <button type="button" disabled={savingLaunched} onClick={saveLaunchedDate} className="h-8 px-2.5 rounded-lg bg-kst-gold/20 text-kst-gold text-xs font-medium hover:bg-kst-gold/30 transition-colors disabled:opacity-50">
+                  {savingLaunched ? '...' : 'Save'}
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => setEditingLaunched(true)}
+                onClick={() => { setStagedLaunched(launchedDate ?? ''); setEditingLaunched(true) }}
                 className="text-sm h-10 flex items-center hover:text-kst-gold transition-colors"
               >
                 {launchedDate ? (
@@ -433,19 +453,27 @@ export function ClientDetailView({
               Program End
             </p>
             {editingEndDate ? (
-              <input
-                type="date"
-                value={programEndDate ?? ''}
-                autoFocus
-                disabled={savingEndDate}
-                onChange={(e) => handleEndDateChange(e.target.value)}
-                onBlur={() => setEditingEndDate(false)}
-                className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={stagedEndDate}
+                  autoFocus
+                  disabled={savingEndDate}
+                  onChange={(e) => setStagedEndDate(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveEndDate()
+                    if (e.key === 'Escape') { setStagedEndDate(programEndDate ?? ''); setEditingEndDate(false) }
+                  }}
+                  className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                />
+                <button type="button" disabled={savingEndDate} onClick={saveEndDate} className="h-8 px-2.5 rounded-lg bg-kst-gold/20 text-kst-gold text-xs font-medium hover:bg-kst-gold/30 transition-colors disabled:opacity-50">
+                  {savingEndDate ? '...' : 'Save'}
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => setEditingEndDate(true)}
+                onClick={() => { setStagedEndDate(programEndDate ?? ''); setEditingEndDate(true) }}
                 className={cn(
                   'text-sm h-10 flex items-center transition-colors',
                   !programEndDate
