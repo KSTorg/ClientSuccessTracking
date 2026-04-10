@@ -237,7 +237,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/70 backdrop-blur-[20px] backdrop-saturate-[1.2]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-client-title"

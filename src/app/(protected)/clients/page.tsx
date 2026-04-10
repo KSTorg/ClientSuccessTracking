@@ -25,7 +25,7 @@ export default async function ClientsPage() {
       .order('full_name'),
     supabase
       .from('client_subscriptions')
-      .select('client_id')
+      .select('client_id, end_date')
       .eq('status', 'active'),
   ])
 
@@ -60,9 +60,25 @@ export default async function ClientsPage() {
     }
   })
 
-  const clientsWithActiveSubs = [
-    ...new Set(((subsRes.data ?? []) as { client_id: string }[]).map((r) => r.client_id))
-  ]
+  // Build subscription info per client: has active subs + max end_date
+  const subRows = (subsRes.data ?? []) as { client_id: string; end_date: string | null }[]
+  const clientSubInfo = new Map<string, { hasActiveSubs: boolean; maxEndDate: string | null; hasOngoing: boolean }>()
+  for (const r of subRows) {
+    const info = clientSubInfo.get(r.client_id) ?? { hasActiveSubs: false, maxEndDate: null, hasOngoing: false }
+    info.hasActiveSubs = true
+    if (r.end_date == null) {
+      info.hasOngoing = true
+    } else if (!info.maxEndDate || r.end_date > info.maxEndDate) {
+      info.maxEndDate = r.end_date
+    }
+    clientSubInfo.set(r.client_id, info)
+  }
 
-  return <ClientsView clients={clientsWithStats} csms={csms} clientsWithSubs={clientsWithActiveSubs} />
+  // Serialize for client component
+  const subInfoSerialized: Record<string, { hasActiveSubs: boolean; maxEndDate: string | null; hasOngoing: boolean }> = {}
+  for (const [id, info] of clientSubInfo) {
+    subInfoSerialized[id] = info
+  }
+
+  return <ClientsView clients={clientsWithStats} csms={csms} clientSubInfo={subInfoSerialized} />
 }

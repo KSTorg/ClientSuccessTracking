@@ -311,6 +311,7 @@ function AddSubscriptionModal({
   const [cycle, setCycle] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
   const [customPrice, setCustomPrice] = useState('')
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
+  const [endDate, setEndDate] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -342,12 +343,26 @@ function AddSubscriptionModal({
   }
   const categoryOrder = ['monthly', 'combo', 'one_time', 'standalone']
 
+  function calcEndDate(start: string, c: string): string {
+    if (!start || c === 'one_time') return ''
+    const d = new Date(start + 'T00:00:00')
+    if (c === 'monthly') d.setMonth(d.getMonth() + 1)
+    else if (c === 'quarterly') d.setMonth(d.getMonth() + 3)
+    else if (c === 'annual') d.setMonth(d.getMonth() + 12)
+    return d.toISOString().slice(0, 10)
+  }
+
   useEffect(() => {
     if (selected) {
       setCustomPrice('')
       setCycle('monthly')
     }
   }, [selected])
+
+  // Auto-calculate end date when cycle or start date changes
+  useEffect(() => {
+    setEndDate(calcEndDate(startDate, effectiveCycle))
+  }, [startDate, effectiveCycle])
 
   async function handleSubmit() {
     if (!selected) return
@@ -359,6 +374,7 @@ function AddSubscriptionModal({
       billing_cycle: effectiveCycle,
       discount_pct: discountPct > 0 ? discountPct : null,
       start_date: startDate || null,
+      end_date: endDate || null,
       notes: notes.trim() || null,
       status: 'active',
     })
@@ -373,7 +389,7 @@ function AddSubscriptionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
+      className="fixed inset-0 z-[70] overflow-y-auto bg-black/70 backdrop-blur-[20px] backdrop-saturate-[1.2]"
       onClick={onClose}
     >
       <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
@@ -478,15 +494,28 @@ function AddSubscriptionModal({
                 />
               </label>
 
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs uppercase tracking-wider text-kst-muted">Start Date</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs uppercase tracking-wider text-kst-muted">Start Date</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                  />
+                </label>
+                {effectiveCycle !== 'one_time' && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs uppercase tracking-wider text-kst-muted">End Date</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                    />
+                  </label>
+                )}
+              </div>
 
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs uppercase tracking-wider text-kst-muted">Notes (optional)</span>

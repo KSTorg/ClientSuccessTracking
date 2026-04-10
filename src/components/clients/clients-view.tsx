@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { DollarSign, Plus, Search, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, DollarSign, Plus, Search, Users } from 'lucide-react'
 import { AddClientModal } from '@/components/AddClientModal'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { ProgramBadge } from '@/components/clients/program-badge'
@@ -16,19 +16,28 @@ import {
   type Program,
 } from '@/lib/types'
 
+interface SubInfo {
+  hasActiveSubs: boolean
+  maxEndDate: string | null
+  hasOngoing: boolean
+}
+
 interface ClientsViewProps {
   clients: ClientWithCsmAndStats[]
   csms: CsmOption[]
-  clientsWithSubs?: string[]
+  clientSubInfo?: Record<string, SubInfo>
 }
 
-type StatusFilter = ClientStatus | 'all'
+type StatusFilter = ClientStatus | 'all' | 'active'
 type ProgramFilter = Program | 'all'
+type SortKey = 'company' | 'contact' | 'status' | 'program' | 'joined' | 'ends' | 'progress'
+type SortDir = 'asc' | 'desc'
 
 const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
   ...CLIENT_STATUSES.map((s) => ({
-    value: s,
+    value: s as StatusFilter,
     label: s.charAt(0).toUpperCase() + s.slice(1),
   })),
 ]
@@ -39,16 +48,57 @@ const PROGRAM_FILTERS: { value: ProgramFilter; label: string }[] = [
   { value: 'accelerator', label: PROGRAM_LABELS.accelerator },
 ]
 
-export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps) {
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'company', label: 'Company' },
+  { key: 'contact', label: 'Contact' },
+  { key: 'status', label: 'Status' },
+  { key: 'program', label: 'Program' },
+  { key: 'joined', label: 'Joined' },
+  { key: 'ends', label: 'Ends' },
+  { key: 'progress', label: 'Progress' },
+]
+
+function getEffectiveEndDate(c: ClientWithCsmAndStats, subInfo?: SubInfo): string | null {
+  if (subInfo?.hasOngoing) return null // "Active" — no date
+  if (subInfo?.maxEndDate) return subInfo.maxEndDate
+  return c.program_end_date
+}
+
+function getSortValue(c: ClientWithCsmAndStats, key: SortKey, subInfo?: SubInfo): string | number {
+  switch (key) {
+    case 'company': return c.company_name.toLowerCase()
+    case 'contact': return c.contact_name.toLowerCase()
+    case 'status': return c.status
+    case 'program': return c.program
+    case 'joined': return c.joined_date ?? c.created_at
+    case 'ends': return getEffectiveEndDate(c, subInfo) ?? 'zzz'
+    case 'progress': return c.task_total > 0 ? c.task_completed / c.task_total : 0
+    default: return ''
+  }
+}
+
+export function ClientsView({ clients, csms, clientSubInfo }: ClientsViewProps) {
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all')
   const [modalOpen, setModalOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<SortKey>('joined')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function handleSort(key: SortKey) {
+    if (sortBy === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(key)
+      setSortDir('asc')
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return clients.filter((c) => {
-      if (statusFilter !== 'all' && c.status !== statusFilter) return false
+    const base = clients.filter((c) => {
+      if (statusFilter === 'active' && c.status !== 'onboarding' && c.status !== 'launched') return false
+      else if (statusFilter !== 'all' && statusFilter !== 'active' && c.status !== statusFilter) return false
       if (programFilter !== 'all' && c.program !== programFilter) return false
       if (!q) return true
       return (
@@ -57,7 +107,18 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
         c.contact_email.toLowerCase().includes(q)
       )
     })
-  }, [clients, search, statusFilter, programFilter])
+
+    // Sort
+    const sorted = [...base].sort((a, b) => {
+      const va = getSortValue(a, sortBy, clientSubInfo?.[a.id])
+      const vb = getSortValue(b, sortBy, clientSubInfo?.[b.id])
+      let cmp = 0
+      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb
+      else cmp = String(va).localeCompare(String(vb))
+      return sortDir === 'desc' ? -cmp : cmp
+    })
+    return sorted
+  }, [clients, search, statusFilter, programFilter, sortBy, sortDir, clientSubInfo])
 
   return (
     <div className="w-full">
@@ -166,36 +227,33 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                 <col style={{ width: '13%' }} />
                 <col style={{ width: '10%' }} />
                 <col style={{ width: '11%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '11%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
                 <col style={{ width: '18%' }} />
               </colgroup>
               <thead>
-                <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Company</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Contact</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Status</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Program</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
+                <tr className="text-left text-xs uppercase tracking-wider border-b border-white/[0.06]">
+                  {COLUMNS.map((col) => {
+                    const isActive = sortBy === col.key
+                    return (
+                      <th key={col.key} className="px-3 py-3 font-medium">
+                        <button
+                          type="button"
+                          onClick={() => handleSort(col.key)}
+                          className={cn(
+                            'flex items-center gap-1 transition-colors',
+                            isActive ? 'text-kst-gold' : 'text-kst-muted hover:text-kst-white'
+                          )}
+                        >
+                          <span className="truncate">{col.label}</span>
+                          {isActive && (sortDir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
+                        </button>
+                      </th>
+                    )
+                  })}
+                  <th className="px-3 py-3 font-medium text-kst-muted">
                     <div className="truncate">CSM</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Joined</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Ends</div>
-                  </th>
-                  <th className="px-3 py-3 font-medium">
-                    <div className="truncate">Progress</div>
                   </th>
                 </tr>
               </thead>
@@ -205,6 +263,7 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                     c.task_total > 0
                       ? Math.round((c.task_completed / c.task_total) * 100)
                       : 0
+                  const subInfo = clientSubInfo?.[c.id]
                   return (
                     <tr
                       key={c.id}
@@ -220,7 +279,7 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span className="truncate">{c.company_name}</span>
-                          {clientsWithSubs?.includes(c.id) && (
+                          {subInfo?.hasActiveSubs && (
                             <DollarSign size={12} className="text-kst-gold shrink-0" />
                           )}
                           {c.is_imported && (
@@ -246,23 +305,15 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                         </div>
                       </td>
                       <td className="px-3 py-4">
-                        <div className="truncate">
-                          {c.csm?.full_name ? (
-                            <span className="text-kst-white">
-                              {c.csm.full_name}
-                            </span>
-                          ) : (
-                            <span className="text-kst-muted">Unassigned</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
                         <div className="truncate text-kst-muted">
                           {formatDate(c.joined_date ?? c.created_at)}
                         </div>
                       </td>
                       <td className="px-3 py-4">
-                        <EndDateCell date={c.program_end_date} />
+                        <EndDateCell
+                          programEndDate={c.program_end_date}
+                          subInfo={subInfo}
+                        />
                       </td>
                       <td className="px-3 py-4">
                         <div className="flex items-center gap-2">
@@ -275,6 +326,17 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                           <span className="text-kst-muted text-xs w-8 text-right shrink-0">
                             {pct}%
                           </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-4">
+                        <div className="truncate">
+                          {c.csm?.full_name ? (
+                            <span className="text-kst-white">
+                              {c.csm.full_name}
+                            </span>
+                          ) : (
+                            <span className="text-kst-muted">Unassigned</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -310,7 +372,14 @@ const MONTH_SHORT = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
-function EndDateCell({ date }: { date: string | null }) {
+function EndDateCell({ programEndDate, subInfo }: { programEndDate: string | null; subInfo?: SubInfo }) {
+  // Active subs with no end date = ongoing
+  if (subInfo?.hasOngoing) {
+    return <span className="text-kst-success text-sm truncate">Active</span>
+  }
+
+  // Use sub end date if available, otherwise program end date
+  const date = subInfo?.maxEndDate ?? programEndDate
   if (!date) return <span className="text-kst-muted truncate">—</span>
 
   const todayIso = new Date().toISOString().slice(0, 10)
