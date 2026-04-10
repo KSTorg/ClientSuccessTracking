@@ -117,11 +117,13 @@ export function SubscriptionsSection({ clientId, joinedDate, programEndDate, sta
     return sum + s.price
   }, 0)
 
+  const [replacingSubId, setReplacingSubId] = useState<string | null>(null)
+
   async function cancelSub(subId: string) {
     const today = new Date().toISOString().slice(0, 10)
     const { error } = await supabase
       .from('client_subscriptions')
-      .update({ status: 'cancelled', cancelled_at: today })
+      .update({ status: 'cancelled', cancelled_at: today, end_date: today })
       .eq('id', subId)
     setMenuOpen(null)
     if (error) {
@@ -130,6 +132,12 @@ export function SubscriptionsSection({ clientId, joinedDate, programEndDate, sta
     }
     toast.success('Subscription cancelled')
     loadSubs()
+  }
+
+  async function replaceSub(subId: string) {
+    setReplacingSubId(subId)
+    setMenuOpen(null)
+    await openModal()
   }
 
   async function openModal() {
@@ -233,10 +241,17 @@ export function SubscriptionsSection({ clientId, joinedDate, programEndDate, sta
                     <div className="absolute right-0 top-full mt-1 z-50 kst-dropdown p-1 min-w-[160px] kst-fade-in">
                       <button
                         type="button"
+                        onClick={() => replaceSub(s.id)}
+                        className="w-full text-left px-3 py-2 text-sm text-kst-white hover:bg-white/[0.06] rounded-lg transition-colors"
+                      >
+                        Replace
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => cancelSub(s.id)}
                         className="w-full text-left px-3 py-2 text-sm text-kst-error hover:bg-white/[0.06] rounded-lg transition-colors"
                       >
-                        Cancel Subscription
+                        Cancel
                       </button>
                     </div>
                   )}
@@ -278,13 +293,14 @@ export function SubscriptionsSection({ clientId, joinedDate, programEndDate, sta
         </>
       )}
 
-      {/* Add Subscription Modal */}
+      {/* Add/Replace Subscription Modal */}
       {modalOpen && (
         <AddSubscriptionModal
           clientId={clientId}
           services={services}
-          onClose={() => setModalOpen(false)}
-          onAdded={() => { setModalOpen(false); loadSubs() }}
+          replacingSubId={replacingSubId}
+          onClose={() => { setModalOpen(false); setReplacingSubId(null) }}
+          onAdded={() => { setModalOpen(false); setReplacingSubId(null); loadSubs() }}
         />
       )}
     </div>
@@ -296,22 +312,24 @@ export function SubscriptionsSection({ clientId, joinedDate, programEndDate, sta
 function AddSubscriptionModal({
   clientId,
   services,
+  replacingSubId,
   onClose,
   onAdded,
 }: {
   clientId: string
   services: Service[]
+  replacingSubId: string | null
   onClose: () => void
   onAdded: () => void
 }) {
   const supabase = createClient()
   const toast = useToast()
+  const isReplace = !!replacingSubId
 
   const [selected, setSelected] = useState<Service | null>(null)
   const [cycle, setCycle] = useState<'monthly' | 'quarterly' | 'annual'>('monthly')
   const [customPrice, setCustomPrice] = useState('')
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
-  const [endDate, setEndDate] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -343,15 +361,6 @@ function AddSubscriptionModal({
   }
   const categoryOrder = ['monthly', 'combo', 'one_time', 'standalone']
 
-  function calcEndDate(start: string, c: string): string {
-    if (!start || c === 'one_time') return ''
-    const d = new Date(start + 'T00:00:00')
-    if (c === 'monthly') d.setMonth(d.getMonth() + 1)
-    else if (c === 'quarterly') d.setMonth(d.getMonth() + 3)
-    else if (c === 'annual') d.setMonth(d.getMonth() + 12)
-    return d.toISOString().slice(0, 10)
-  }
-
   useEffect(() => {
     if (selected) {
       setCustomPrice('')
@@ -359,14 +368,19 @@ function AddSubscriptionModal({
     }
   }, [selected])
 
-  // Auto-calculate end date when cycle or start date changes
-  useEffect(() => {
-    setEndDate(calcEndDate(startDate, effectiveCycle))
-  }, [startDate, effectiveCycle])
-
   async function handleSubmit() {
     if (!selected) return
     setSaving(true)
+
+    // If replacing, cancel the old subscription first
+    if (replacingSubId) {
+      const today = new Date().toISOString().slice(0, 10)
+      await supabase
+        .from('client_subscriptions')
+        .update({ status: 'cancelled', cancelled_at: today, end_date: today })
+        .eq('id', replacingSubId)
+    }
+
     const { error } = await supabase.from('client_subscriptions').insert({
       client_id: clientId,
       service_id: selected.id,
@@ -374,7 +388,7 @@ function AddSubscriptionModal({
       billing_cycle: effectiveCycle,
       discount_pct: discountPct > 0 ? discountPct : null,
       start_date: startDate || null,
-      end_date: endDate || null,
+      end_date: null,
       notes: notes.trim() || null,
       status: 'active',
     })
@@ -383,7 +397,7 @@ function AddSubscriptionModal({
       toast.error(`Could not add subscription: ${error.message}`)
       return
     }
-    toast.success(`${selected.name} added`)
+    toast.success(isReplace ? `Replaced with ${selected.name}` : `${selected.name} added`)
     onAdded()
   }
 
@@ -405,7 +419,9 @@ function AddSubscriptionModal({
             <X size={18} />
           </button>
 
-          <h2 className="text-kst-white text-xl font-semibold mb-5">Add Subscription</h2>
+          <h2 className="text-kst-white text-xl font-semibold mb-5">
+            {isReplace ? 'Replace Subscription' : 'Add Subscription'}
+          </h2>
 
           {/* Service picker */}
           <div className="max-h-[280px] overflow-y-auto mb-5 space-y-4">
@@ -494,28 +510,15 @@ function AddSubscriptionModal({
                 />
               </label>
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs uppercase tracking-wider text-kst-muted">Start Date</span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-                  />
-                </label>
-                {effectiveCycle !== 'one_time' && (
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs uppercase tracking-wider text-kst-muted">End Date</span>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-                    />
-                  </label>
-                )}
-              </div>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs uppercase tracking-wider text-kst-muted">Start Date</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+                />
+              </label>
 
               <label className="flex flex-col gap-1.5">
                 <span className="text-xs uppercase tracking-wider text-kst-muted">Notes (optional)</span>
@@ -543,7 +546,7 @@ function AddSubscriptionModal({
               onClick={handleSubmit}
               className="px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
             >
-              {saving ? 'Adding...' : 'Add Subscription'}
+              {saving ? (isReplace ? 'Replacing...' : 'Adding...') : (isReplace ? 'Replace Subscription' : 'Add Subscription')}
             </button>
           </div>
         </div>

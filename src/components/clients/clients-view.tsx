@@ -16,16 +16,10 @@ import {
   type Program,
 } from '@/lib/types'
 
-interface SubInfo {
-  hasActiveSubs: boolean
-  maxEndDate: string | null
-  hasOngoing: boolean
-}
-
 interface ClientsViewProps {
   clients: ClientWithCsmAndStats[]
   csms: CsmOption[]
-  clientSubInfo?: Record<string, SubInfo>
+  clientsWithSubs?: string[]
 }
 
 type StatusFilter = ClientStatus | 'all' | 'active'
@@ -58,26 +52,20 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'progress', label: 'Progress' },
 ]
 
-function getEffectiveEndDate(c: ClientWithCsmAndStats, subInfo?: SubInfo): string | null {
-  if (subInfo?.hasOngoing) return null // "Active" — no date
-  if (subInfo?.maxEndDate) return subInfo.maxEndDate
-  return c.program_end_date
-}
-
-function getSortValue(c: ClientWithCsmAndStats, key: SortKey, subInfo?: SubInfo): string | number {
+function getSortValue(c: ClientWithCsmAndStats, key: SortKey, hasSubs?: boolean): string | number {
   switch (key) {
     case 'company': return c.company_name.toLowerCase()
     case 'contact': return c.contact_name.toLowerCase()
     case 'status': return c.status
     case 'program': return c.program
     case 'joined': return c.joined_date ?? c.created_at
-    case 'ends': return getEffectiveEndDate(c, subInfo) ?? 'zzz'
+    case 'ends': return hasSubs ? 'aaa' : (c.program_end_date ?? 'zzz')
     case 'progress': return c.task_total > 0 ? c.task_completed / c.task_total : 0
     default: return ''
   }
 }
 
-export function ClientsView({ clients, csms, clientSubInfo }: ClientsViewProps) {
+export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all')
@@ -110,15 +98,15 @@ export function ClientsView({ clients, csms, clientSubInfo }: ClientsViewProps) 
 
     // Sort
     const sorted = [...base].sort((a, b) => {
-      const va = getSortValue(a, sortBy, clientSubInfo?.[a.id])
-      const vb = getSortValue(b, sortBy, clientSubInfo?.[b.id])
+      const va = getSortValue(a, sortBy, clientsWithSubs?.includes(a.id))
+      const vb = getSortValue(b, sortBy, clientsWithSubs?.includes(b.id))
       let cmp = 0
       if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb
       else cmp = String(va).localeCompare(String(vb))
       return sortDir === 'desc' ? -cmp : cmp
     })
     return sorted
-  }, [clients, search, statusFilter, programFilter, sortBy, sortDir, clientSubInfo])
+  }, [clients, search, statusFilter, programFilter, sortBy, sortDir, clientsWithSubs])
 
   return (
     <div className="w-full">
@@ -263,7 +251,7 @@ export function ClientsView({ clients, csms, clientSubInfo }: ClientsViewProps) 
                     c.task_total > 0
                       ? Math.round((c.task_completed / c.task_total) * 100)
                       : 0
-                  const subInfo = clientSubInfo?.[c.id]
+                  const hasSubs = clientsWithSubs?.includes(c.id)
                   return (
                     <tr
                       key={c.id}
@@ -279,7 +267,7 @@ export function ClientsView({ clients, csms, clientSubInfo }: ClientsViewProps) 
                           onClick={(e) => e.stopPropagation()}
                         >
                           <span className="truncate">{c.company_name}</span>
-                          {subInfo?.hasActiveSubs && (
+                          {hasSubs && (
                             <DollarSign size={12} className="text-kst-gold shrink-0" />
                           )}
                           {c.is_imported && (
@@ -312,7 +300,7 @@ export function ClientsView({ clients, csms, clientSubInfo }: ClientsViewProps) 
                       <td className="px-3 py-4">
                         <EndDateCell
                           programEndDate={c.program_end_date}
-                          subInfo={subInfo}
+                          hasActiveSubs={!!hasSubs}
                         />
                       </td>
                       <td className="px-3 py-4">
@@ -372,14 +360,12 @@ const MONTH_SHORT = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
-function EndDateCell({ programEndDate, subInfo }: { programEndDate: string | null; subInfo?: SubInfo }) {
-  // Active subs with no end date = ongoing
-  if (subInfo?.hasOngoing) {
+function EndDateCell({ programEndDate, hasActiveSubs }: { programEndDate: string | null; hasActiveSubs: boolean }) {
+  if (hasActiveSubs) {
     return <span className="text-kst-success text-sm truncate">Active</span>
   }
 
-  // Use sub end date if available, otherwise program end date
-  const date = subInfo?.maxEndDate ?? programEndDate
+  const date = programEndDate
   if (!date) return <span className="text-kst-muted truncate">—</span>
 
   const todayIso = new Date().toISOString().slice(0, 10)

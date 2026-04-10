@@ -248,6 +248,19 @@ export function ClientDetailView({
       return
     }
 
+    // Auto-cancel active subscriptions when churned
+    if (next === 'churned') {
+      const today = new Date().toISOString().slice(0, 10)
+      supabase
+        .from('client_subscriptions')
+        .update({ status: 'cancelled', cancelled_at: today, end_date: today })
+        .eq('client_id', client.id)
+        .eq('status', 'active')
+        .then(({ error: subErr }) => {
+          if (subErr) console.warn('[status] auto-cancel subs failed:', subErr.message)
+        })
+    }
+
     // Log status change history (fire-and-forget)
     supabase
       .from('client_status_history')
