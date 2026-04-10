@@ -51,7 +51,9 @@ export interface ClientMetricsRow {
 export interface TaskPerformanceRow {
   title: string | null
   stage_name: string | null
-  times_overdue: number | null
+  times_ever_overdue: number | null
+  times_currently_overdue: number | null
+  times_completed_late: number | null
   overdue_rate_pct: number | null
   avg_days_to_complete: number | null
 }
