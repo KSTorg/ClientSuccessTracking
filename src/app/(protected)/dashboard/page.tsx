@@ -137,7 +137,7 @@ export default async function DashboardPage() {
       .order('overall_roas', { ascending: false, nullsFirst: false }),
     supabase
       .from('analytics_task_performance')
-      .select('*')
+      .select('title, stage_name, times_overdue, overdue_rate_pct, avg_days_to_complete')
       .gt('times_overdue', 0)
       .order('overdue_rate_pct', { ascending: false, nullsFirst: false })
       .limit(10),

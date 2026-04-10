@@ -50,7 +50,6 @@ export interface ClientMetricsRow {
 
 export interface TaskPerformanceRow {
   title: string | null
-  task_title: string | null
   stage_name: string | null
   times_overdue: number | null
   overdue_rate_pct: number | null
@@ -393,7 +392,7 @@ function TaskBottlenecks({ rows }: { rows: TaskPerformanceRow[] }) {
                 <div className="flex items-start justify-between gap-3 mb-1.5">
                   <div className="min-w-0 flex-1">
                     <p className="text-kst-white text-sm truncate">
-                      {r.title ?? r.task_title ?? 'Untitled task'}
+                      {r.title ?? 'Untitled task'}
                     </p>
                     <p className="text-kst-muted text-xs truncate">
                       {r.stage_name ?? '—'}
