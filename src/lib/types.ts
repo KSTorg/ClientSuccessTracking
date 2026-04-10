@@ -73,7 +73,6 @@ export interface Client {
   launched_date: string | null
   program_end_date: string | null
   is_imported: boolean
-  times_renewed: number
   churned_at: string | null
   notes: string | null
   user_id: string | null

@@ -77,20 +77,14 @@ export interface ClientTimeToLaunchRow {
 
 export interface RetentionData {
   total_ended_programs: number | null
-  total_ever_renewed: number | null
+  total_with_subs: number | null
   total_churned: number | null
-  total_renewals: number | null
-  ended_no_action: number | null
-  renewal_rate_pct: number | null
-  churn_rate_pct: number | null
-  avg_renewals_before_churn: number | null
-  avg_days_to_churn: number | null
-  churned_after_renewal_pct: number | null
   sub_adoption_rate_pct: number | null
-  clients_with_subs_after_program: number | null
-  ei_renewed: number | null
+  churn_rate_pct: number | null
+  avg_days_to_churn: number | null
+  ei_with_subs: number | null
   ei_churned: number | null
-  acc_renewed: number | null
+  acc_with_subs: number | null
   acc_churned: number | null
 }
 
@@ -655,14 +649,14 @@ function fmtPct(v: number | null | undefined): string {
 
 function RetentionPanel({ data }: { data: RetentionData | null }) {
   const total = Number(data?.total_ended_programs ?? 0)
-  const renewed = Number(data?.total_ever_renewed ?? 0)
+  const withSubs = Number(data?.total_with_subs ?? 0)
   const churned = Number(data?.total_churned ?? 0)
-  const renewalPct = Number(data?.renewal_rate_pct ?? 0)
+  const adoptionPct = Number(data?.sub_adoption_rate_pct ?? 0)
 
-  const renewalColor =
-    renewalPct >= 70
+  const adoptionColor =
+    adoptionPct >= 70
       ? 'text-kst-success'
-      : renewalPct >= 50
+      : adoptionPct >= 50
         ? 'text-kst-gold'
         : 'text-kst-error'
 
@@ -682,10 +676,10 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
         <>
           {/* Ratio bar */}
           <div className="h-3 rounded-full overflow-hidden flex bg-white/[0.06] mb-5">
-            {renewed > 0 && (
+            {withSubs > 0 && (
               <div
                 className="bg-kst-success transition-all"
-                style={{ width: `${(renewed / total) * 100}%` }}
+                style={{ width: `${(withSubs / total) * 100}%` }}
               />
             )}
             {churned > 0 && (
@@ -700,8 +694,8 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <p className="text-kst-muted text-xs mb-1">Sub Adoption Rate</p>
-              <p className={cn('text-2xl font-bold', renewalColor)}>
-                {fmtPct(data?.renewal_rate_pct)}
+              <p className={cn('text-2xl font-bold', adoptionColor)}>
+                {fmtPct(data?.sub_adoption_rate_pct)}
               </p>
             </div>
             <div>
@@ -713,60 +707,30 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
           </div>
 
           {/* Row 2: Counts */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <p className="text-kst-muted text-xs mb-1">Clients with Subs</p>
-              <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_ever_renewed)}</p>
+              <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_with_subs)}</p>
             </div>
             <div>
               <p className="text-kst-muted text-xs mb-1">Churned</p>
               <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_churned)}</p>
             </div>
-            <div>
-              <p className="text-kst-muted text-xs mb-1">No Action</p>
-              <p className={cn(
-                'text-lg font-semibold',
-                Number(data?.ended_no_action ?? 0) > 0 ? 'text-kst-gold' : 'text-kst-white'
-              )}>
-                {fmt(data?.ended_no_action)}
-              </p>
-            </div>
           </div>
 
-          {/* Row 3: Insights (only if any data) */}
-          {(data?.avg_renewals_before_churn != null ||
-            data?.avg_days_to_churn != null ||
-            data?.churned_after_renewal_pct != null) && (
+          {/* Avg Days to Churn */}
+          {data?.avg_days_to_churn != null && (
             <div className="border-t border-white/[0.06] pt-4 mb-4">
-              <p className="text-kst-muted text-xs uppercase tracking-wider mb-3">Insights</p>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-kst-muted text-xs mb-1">Avg Renewals Before Churn</p>
-                  <p className="text-kst-white text-sm font-semibold">
-                    {data?.avg_renewals_before_churn != null
-                      ? Number(data.avg_renewals_before_churn).toFixed(1)
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-kst-muted text-xs mb-1">Avg Days to Churn</p>
-                  <p className="text-kst-white text-sm font-semibold">
-                    {data?.avg_days_to_churn != null
-                      ? `${Number(data.avg_days_to_churn).toFixed(0)} days`
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-kst-muted text-xs mb-1">Churned After Renewal</p>
-                  <p className="text-kst-white text-sm font-semibold">
-                    {fmtPct(data?.churned_after_renewal_pct)}
-                  </p>
-                </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-kst-muted">Avg Days to Churn</span>
+                <span className="text-kst-white font-semibold">
+                  {Number(data.avg_days_to_churn).toFixed(0)} days
+                </span>
               </div>
             </div>
           )}
 
-          {/* Row 4: By Program */}
+          {/* By Program */}
           <div className="border-t border-white/[0.06] pt-4 space-y-2">
             <p className="text-kst-muted text-xs uppercase tracking-wider mb-2">
               By Program
@@ -774,7 +738,7 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
             <div className="flex items-center justify-between text-sm">
               <span className="text-kst-muted">Educator Incubator</span>
               <span>
-                <span className="text-kst-success">{fmt(data?.ei_renewed)} renewed</span>
+                <span className="text-kst-success">{fmt(data?.ei_with_subs)} with subs</span>
                 {' / '}
                 <span className="text-kst-error">{fmt(data?.ei_churned)} churned</span>
               </span>
@@ -782,7 +746,7 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
             <div className="flex items-center justify-between text-sm">
               <span className="text-kst-muted">Accelerator</span>
               <span>
-                <span className="text-kst-success">{fmt(data?.acc_renewed)} renewed</span>
+                <span className="text-kst-success">{fmt(data?.acc_with_subs)} with subs</span>
                 {' / '}
                 <span className="text-kst-error">{fmt(data?.acc_churned)} churned</span>
               </span>

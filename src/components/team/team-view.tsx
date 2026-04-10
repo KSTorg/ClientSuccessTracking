@@ -155,19 +155,11 @@ export function TeamView({
       )
     )
 
-    console.log('[team] updating specialty', {
-      memberId: member.id,
-      from: prev,
-      to: nextSpecialty,
-    })
-
     const response = await supabase
       .from('profiles')
       .update({ specialty: nextSpecialty })
       .eq('id', member.id)
       .select('id, specialty')
-
-    console.log('[team] specialty update response:', response)
 
     setSavingId(null)
 

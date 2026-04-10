@@ -311,11 +311,6 @@ export function ClientDetailView({
       if (row.has_login && row.user_id) userIds.add(row.user_id)
     }
 
-    console.log(
-      '[delete client] cleaning up auth users:',
-      Array.from(userIds)
-    )
-
     // 2) Call /api/delete-user for each. Failures are logged but never block
     //    the client deletion itself — an orphan auth user is recoverable, a
     //    half-deleted client is not.
@@ -333,8 +328,6 @@ export function ClientDetailView({
               `[delete client] delete-user failed for ${userId}:`,
               body?.error ?? res.status
             )
-          } else {
-            console.log(`[delete client] removed auth user ${userId}`)
           }
         } catch (err) {
           console.warn(

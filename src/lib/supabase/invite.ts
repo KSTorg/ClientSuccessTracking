@@ -15,13 +15,6 @@ export async function inviteUser(params: {
   specialty?: Specialty | null
   discordId?: string | null
 }): Promise<{ userId: string }> {
-  console.log('[invite] POST /api/invite', {
-    email: params.email,
-    fullName: params.fullName,
-    role: params.role,
-    specialty: params.specialty ?? null,
-  })
-
   const res = await fetch('/api/invite', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,8 +34,6 @@ export async function inviteUser(params: {
   } catch {
     // ignore — fall through to status check below
   }
-  console.log('[invite] /api/invite response:', { status: res.status, data })
-
   if (!res.ok) {
     throw new Error(data.error || `Invite failed (${res.status})`)
   }
