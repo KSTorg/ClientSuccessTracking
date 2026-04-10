@@ -31,6 +31,7 @@ interface SubscriptionsSectionProps {
   clientId: string
   joinedDate?: string | null
   programEndDate?: string | null
+  status?: string
 }
 
 const CYCLE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -55,7 +56,7 @@ function fmtPrice(amount: number, cycle: string): string {
   return `${f}/mo`
 }
 
-export function SubscriptionsSection({ clientId, joinedDate, programEndDate }: SubscriptionsSectionProps) {
+export function SubscriptionsSection({ clientId, joinedDate, programEndDate, status }: SubscriptionsSectionProps) {
   const supabase = createClient()
   const toast = useToast()
 
@@ -169,6 +170,19 @@ export function SubscriptionsSection({ clientId, joinedDate, programEndDate }: S
           Add Subscription
         </button>
       </div>
+
+      {/* Program ended alert */}
+      {programEnded && !loading && active.length === 0 && status !== 'churned' && (
+        <div
+          className="glass-panel-sm p-3 mb-4 flex items-center gap-2"
+          style={{ borderColor: 'rgba(201, 168, 76, 0.3)' }}
+        >
+          <span className="w-2 h-2 rounded-full bg-kst-gold shrink-0" />
+          <p className="text-kst-gold text-sm">
+            Program ended — add subscriptions to continue services
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-kst-muted text-sm py-4 text-center">Loading...</p>

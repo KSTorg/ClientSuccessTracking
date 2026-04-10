@@ -699,7 +699,7 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
           {/* Row 1: Rates */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <p className="text-kst-muted text-xs mb-1">Renewal Rate</p>
+              <p className="text-kst-muted text-xs mb-1">Sub Adoption Rate</p>
               <p className={cn('text-2xl font-bold', renewalColor)}>
                 {fmtPct(data?.renewal_rate_pct)}
               </p>
@@ -713,18 +713,14 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
           </div>
 
           {/* Row 2: Counts */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
             <div>
-              <p className="text-kst-muted text-xs mb-1">Renewed</p>
+              <p className="text-kst-muted text-xs mb-1">Clients with Subs</p>
               <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_ever_renewed)}</p>
             </div>
             <div>
               <p className="text-kst-muted text-xs mb-1">Churned</p>
               <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_churned)}</p>
-            </div>
-            <div>
-              <p className="text-kst-muted text-xs mb-1">Total Renewals</p>
-              <p className="text-kst-white text-lg font-semibold">{fmt(data?.total_renewals)}</p>
             </div>
             <div>
               <p className="text-kst-muted text-xs mb-1">No Action</p>
@@ -736,19 +732,6 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
               </p>
             </div>
           </div>
-
-          {/* Sub Adoption */}
-          {data?.sub_adoption_rate_pct != null && (
-            <div className="flex items-center justify-between text-sm mb-4">
-              <span className="text-kst-muted">Sub Adoption Rate</span>
-              <span className="text-kst-gold font-semibold">
-                {Number(data.sub_adoption_rate_pct).toFixed(0)}%
-                <span className="text-kst-muted font-normal ml-1 text-xs">
-                  ({fmt(data.clients_with_subs_after_program)} clients)
-                </span>
-              </span>
-            </div>
-          )}
 
           {/* Row 3: Insights (only if any data) */}
           {(data?.avg_renewals_before_churn != null ||

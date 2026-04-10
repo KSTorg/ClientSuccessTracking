@@ -224,56 +224,6 @@ export function ClientDetailView({
     setHistoryLoaded(true)
   }
 
-  // Renew
-  const [renewOpen, setRenewOpen] = useState(false)
-  const [renewDate, setRenewDate] = useState('')
-  const [renewing, setRenewing] = useState(false)
-
-  function openRenewModal() {
-    const months = client.program === 'accelerator' ? 3 : 4
-    const d = new Date()
-    d.setMonth(d.getMonth() + months)
-    setRenewDate(d.toISOString().slice(0, 10))
-    setRenewOpen(true)
-  }
-
-  async function handleRenew() {
-    if (!renewDate) return
-    setRenewing(true)
-    const prevStatus = status
-    const prevEndDate = programEndDate
-
-    await supabase.from('client_status_history').insert({
-      client_id: client.id,
-      old_status: prevStatus,
-      new_status: 'launched',
-      program_end_date_at_change: prevEndDate,
-    })
-
-    const updates: Record<string, unknown> = {
-      status: 'launched',
-      program_end_date: renewDate,
-      times_renewed: (client.times_renewed ?? 0) + 1,
-    }
-    if (prevStatus === 'churned') updates.churned_at = null
-
-    const { error } = await supabase
-      .from('clients')
-      .update(updates)
-      .eq('id', client.id)
-    setRenewing(false)
-    if (error) {
-      toast.error(`Could not renew: ${error.message}`)
-      return
-    }
-
-    setStatus('launched')
-    setProgramEndDate(renewDate)
-    setRenewOpen(false)
-    toast.success(`Client renewed — program extended to ${formatDate(renewDate)}`)
-    router.refresh()
-  }
-
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -459,18 +409,11 @@ export function ClientDetailView({
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Status
             </p>
-            <div className="flex items-center gap-2">
-              <ClientStatusPicker
-                value={status}
-                disabled={savingField === 'status'}
-                onChange={handleStatusChange}
-              />
-              {client.times_renewed > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted">
-                  ×{client.times_renewed}
-                </span>
-              )}
-            </div>
+            <ClientStatusPicker
+              value={status}
+              disabled={savingField === 'status'}
+              onChange={handleStatusChange}
+            />
           </div>
 
           <div>
@@ -546,21 +489,9 @@ export function ClientDetailView({
           </div>
 
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-xs uppercase tracking-wider text-kst-muted">
-                Program End
-              </p>
-              {status !== 'onboarding' && !editingEndDate && (
-                <button
-                  type="button"
-                  onClick={openRenewModal}
-                  className="inline-flex items-center gap-1 px-2 h-5 rounded border border-kst-gold/40 text-kst-gold text-[10px] font-medium hover:bg-kst-gold/10 transition-colors"
-                >
-                  <RefreshCw size={9} />
-                  Renew
-                </button>
-              )}
-            </div>
+            <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
+              Program End
+            </p>
             {editingEndDate ? (
               <div className="flex items-center gap-2">
                 <input
@@ -674,6 +605,7 @@ export function ClientDetailView({
         clientId={client.id}
         joinedDate={client.joined_date ?? client.created_at}
         programEndDate={programEndDate}
+        status={status}
       />
 
       {/* Notes */}
@@ -781,56 +713,6 @@ export function ClientDetailView({
           </div>
         )}
       </div>
-
-      {/* Renew Modal */}
-      {renewOpen && (
-        <div
-          className="fixed inset-0 z-[70] overflow-y-auto bg-black/60 backdrop-blur-md"
-          onClick={() => setRenewOpen(false)}
-        >
-          <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
-            <div
-              className="glass-panel relative w-full max-w-[400px] p-7"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-kst-white text-lg font-semibold mb-4">
-                Renew {client.company_name}
-              </h2>
-              {programEndDate && (
-                <p className="text-kst-muted text-sm mb-4">
-                  Current end date: <span className="text-kst-white">{formatDate(programEndDate)}</span>
-                </p>
-              )}
-              <label className="flex flex-col gap-1.5 mb-6">
-                <span className="text-xs uppercase tracking-wider text-kst-muted">New End Date</span>
-                <input
-                  type="date"
-                  value={renewDate}
-                  onChange={(e) => setRenewDate(e.target.value)}
-                  className="h-11 px-4 rounded-xl bg-kst-dark border border-white/10 text-kst-white focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
-                />
-              </label>
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRenewOpen(false)}
-                  className="px-4 h-10 rounded-xl glass-panel-sm text-kst-muted hover:text-kst-white transition-colors text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={renewing || !renewDate}
-                  onClick={handleRenew}
-                  className="px-5 h-10 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm disabled:opacity-60"
-                >
-                  {renewing ? 'Renewing...' : 'Confirm Renewal'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Danger zone — admin only */}
       {isAdmin && (
