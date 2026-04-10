@@ -46,9 +46,9 @@ interface ClientDetailViewProps {
 const STATUS_DOT: Record<ClientStatus, string> = {
   onboarding: 'bg-kst-gold',
   launched: 'bg-kst-success',
-  paused: 'bg-kst-warning',
+  paused: 'bg-white/50',
   churned: 'bg-kst-error',
-  renewed: 'bg-kst-success',
+  renewed: 'bg-[#60A5FA]',
 }
 
 const STATUS_LABEL: Record<ClientStatus, string> = {

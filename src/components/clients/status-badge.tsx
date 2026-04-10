@@ -4,9 +4,9 @@ import type { ClientStatus } from '@/lib/types'
 const STYLES: Record<ClientStatus, string> = {
   onboarding: 'border-kst-gold/60 text-kst-gold bg-kst-gold/10',
   launched: 'border-kst-success/60 text-kst-success bg-kst-success/10',
-  paused: 'border-kst-warning/60 text-kst-warning bg-kst-warning/10',
+  paused: 'border-white/15 text-white/50 bg-white/[0.04]',
   churned: 'border-kst-error/60 text-kst-error bg-kst-error/10',
-  renewed: 'border-kst-success/60 text-kst-success bg-kst-success/10',
+  renewed: 'border-[rgba(96,165,250,0.4)] text-[#60A5FA] bg-[rgba(96,165,250,0.15)]',
 }
 
 const LABELS: Record<ClientStatus, string> = {
