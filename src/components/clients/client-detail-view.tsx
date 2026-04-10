@@ -124,6 +124,30 @@ export function ClientDetailView({
   const [editingJoined, setEditingJoined] = useState(false)
   const [savingJoined, setSavingJoined] = useState(false)
 
+  const [editingLaunched, setEditingLaunched] = useState(false)
+  const [savingLaunched, setSavingLaunched] = useState(false)
+
+  async function handleLaunchedDateEdit(next: string) {
+    if (!next) return
+    const prev = launchedDate
+    setLaunchedDate(next)
+    setStatus('launched')
+    setSavingLaunched(true)
+    const { error } = await supabase
+      .from('clients')
+      .update({ launched_date: next, status: 'launched' })
+      .eq('id', client.id)
+    setSavingLaunched(false)
+    setEditingLaunched(false)
+    if (error) {
+      setLaunchedDate(prev)
+      setStatus(prev ? 'launched' : 'onboarding')
+      toast.error(`Could not update launched date: ${error.message}`)
+      return
+    }
+    router.refresh()
+  }
+
   async function handleJoinedDateChange(next: string) {
     if (!next) return
     const prev = joinedDate
@@ -375,15 +399,31 @@ export function ClientDetailView({
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Launched Date
             </p>
-            <p className="text-sm h-10 flex items-center">
-              {launchedDate ? (
-                <span className="text-kst-white">
-                  {formatDate(launchedDate)}
-                </span>
-              ) : (
-                <span className="text-kst-muted">Not launched</span>
-              )}
-            </p>
+            {editingLaunched ? (
+              <input
+                type="date"
+                value={launchedDate ?? ''}
+                autoFocus
+                disabled={savingLaunched}
+                onChange={(e) => handleLaunchedDateEdit(e.target.value)}
+                onBlur={() => setEditingLaunched(false)}
+                className="h-10 px-3 rounded-lg bg-kst-dark border border-white/10 text-kst-white text-sm focus:outline-none focus:border-kst-gold/60 focus:ring-2 focus:ring-kst-gold/20 transition-colors"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingLaunched(true)}
+                className="text-sm h-10 flex items-center hover:text-kst-gold transition-colors"
+              >
+                {launchedDate ? (
+                  <span className="text-kst-white">
+                    {formatDate(launchedDate)}
+                  </span>
+                ) : (
+                  <span className="text-kst-muted">Not launched</span>
+                )}
+              </button>
+            )}
           </div>
 
           <div>
