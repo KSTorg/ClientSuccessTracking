@@ -17,6 +17,7 @@ import {
   type ClientMetricsRow,
   type ClientTimeToLaunchRow,
   type GlobalTotals,
+  type RetentionData,
   type TaskPerformanceRow,
   type TeamPerformanceRow,
 } from '@/components/dashboard/analytics-section'
@@ -88,6 +89,7 @@ export default async function DashboardPage() {
     taskPerfRes,
     teamPerfRes,
     clientOverviewRes,
+    retentionRes,
   ] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase
@@ -151,6 +153,7 @@ export default async function DashboardPage() {
       .select('company_name, days_to_launch, program, launched_date')
       .not('launched_date', 'is', null)
       .order('launched_date', { ascending: false }),
+    supabase.from('analytics_retention').select('*').maybeSingle(),
   ])
 
   const totalClients = totalRes.count ?? 0
@@ -206,6 +209,7 @@ export default async function DashboardPage() {
   const timeToLaunch = ((clientOverviewRes.data ?? []) as ClientTimeToLaunchRow[]).filter(
     (r) => !importedNames.has(r.company_name ?? '')
   )
+  const retention = (retentionRes.data ?? null) as RetentionData | null
 
   const name = profile?.full_name ?? 'there'
 
@@ -350,6 +354,7 @@ export default async function DashboardPage() {
         taskBottlenecks={taskBottlenecks}
         teamPerformance={teamPerformance}
         timeToLaunch={timeToLaunch}
+        retention={retention}
       />
     </div>
   )

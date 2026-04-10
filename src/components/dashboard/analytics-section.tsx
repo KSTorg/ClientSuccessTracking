@@ -2,6 +2,7 @@ import Link from 'next/link'
 import {
   AlertTriangle,
   BarChart3,
+  RefreshCw,
   Rocket,
   Users,
   Zap,
@@ -74,6 +75,18 @@ export interface ClientTimeToLaunchRow {
   program: Program | null
 }
 
+export interface RetentionData {
+  total_ended_programs: number | null
+  total_renewed: number | null
+  total_churned: number | null
+  renewal_rate_pct: number | null
+  churn_rate_pct: number | null
+  ei_renewed: number | null
+  ei_churned: number | null
+  acc_renewed: number | null
+  acc_churned: number | null
+}
+
 interface AnalyticsSectionProps {
   globalTotals: GlobalTotals | null
   weeklyTrend: WeeklyTrendPoint[]
@@ -81,6 +94,7 @@ interface AnalyticsSectionProps {
   taskBottlenecks: TaskPerformanceRow[]
   teamPerformance: TeamPerformanceRow[]
   timeToLaunch: ClientTimeToLaunchRow[]
+  retention: RetentionData | null
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -94,6 +108,7 @@ export function AnalyticsSection({
   taskBottlenecks,
   teamPerformance,
   timeToLaunch,
+  retention,
 }: AnalyticsSectionProps) {
   const hasAnyData =
     !!globalTotals ||
@@ -101,7 +116,8 @@ export function AnalyticsSection({
     clientMetrics.length > 0 ||
     taskBottlenecks.length > 0 ||
     teamPerformance.length > 0 ||
-    timeToLaunch.length > 0
+    timeToLaunch.length > 0 ||
+    !!retention
 
   return (
     <section className="mt-12">
@@ -136,9 +152,10 @@ export function AnalyticsSection({
         <TeamPerformancePanel rows={teamPerformance} />
       </div>
 
-      {/* F) Time to launch */}
-      <div className="mt-6">
+      {/* F) Time to launch + Retention side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <TimeToLaunchPanel rows={timeToLaunch} />
+        <RetentionPanel data={retention} />
       </div>
     </section>
   )
@@ -544,6 +561,106 @@ function TimeToLaunchPanel({ rows }: { rows: ClientTimeToLaunchRow[] }) {
             )
           })}
         </ul>
+      )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// G) Retention
+// ───────────────────────────────────────────────────────────────────────────
+
+function RetentionPanel({ data }: { data: RetentionData | null }) {
+  const total = Number(data?.total_ended_programs ?? 0)
+  const renewed = Number(data?.total_renewed ?? 0)
+  const churned = Number(data?.total_churned ?? 0)
+  const renewalPct = Number(data?.renewal_rate_pct ?? 0)
+  const churnPct = Number(data?.churn_rate_pct ?? 0)
+
+  const renewalColor =
+    renewalPct >= 70
+      ? 'text-kst-success'
+      : renewalPct >= 50
+        ? 'text-kst-gold'
+        : 'text-kst-error'
+
+  return (
+    <div className="glass-panel p-6 md:p-8">
+      <div className="flex items-center gap-2 mb-5">
+        <RefreshCw size={16} className="text-kst-gold" />
+        <h3 className="text-kst-white font-semibold">Retention</h3>
+      </div>
+
+      {total === 0 ? (
+        <p className="text-kst-muted text-sm py-6 text-center">
+          No programs completed yet — retention data will appear once programs
+          reach their end date.
+        </p>
+      ) : (
+        <>
+          {/* Ratio bar */}
+          <div className="h-3 rounded-full overflow-hidden flex mb-5">
+            {renewed > 0 && (
+              <div
+                className="bg-kst-success transition-all"
+                style={{ width: `${(renewed / total) * 100}%` }}
+              />
+            )}
+            {churned > 0 && (
+              <div
+                className="bg-kst-error transition-all"
+                style={{ width: `${(churned / total) * 100}%` }}
+              />
+            )}
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 gap-4 mb-5">
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Renewal Rate</p>
+              <p className={cn('text-2xl font-bold', renewalColor)}>
+                {renewalPct.toFixed(0)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Churn Rate</p>
+              <p className="text-2xl font-bold text-kst-error">
+                {churnPct.toFixed(0)}%
+              </p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Total Renewed</p>
+              <p className="text-kst-white text-lg font-semibold">{renewed}</p>
+            </div>
+            <div>
+              <p className="text-kst-muted text-xs mb-1">Total Churned</p>
+              <p className="text-kst-white text-lg font-semibold">{churned}</p>
+            </div>
+          </div>
+
+          {/* Program breakdown */}
+          <div className="border-t border-white/[0.06] pt-4 space-y-2">
+            <p className="text-kst-muted text-xs uppercase tracking-wider mb-2">
+              By Program
+            </p>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-kst-muted">Educator Incubator</span>
+              <span className="text-kst-white">
+                <span className="text-kst-success">{Number(data?.ei_renewed ?? 0)} renewed</span>
+                {' / '}
+                <span className="text-kst-error">{Number(data?.ei_churned ?? 0)} churned</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-kst-muted">Accelerator</span>
+              <span className="text-kst-white">
+                <span className="text-kst-success">{Number(data?.acc_renewed ?? 0)} renewed</span>
+                {' / '}
+                <span className="text-kst-error">{Number(data?.acc_churned ?? 0)} churned</span>
+              </span>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
