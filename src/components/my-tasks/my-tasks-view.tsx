@@ -21,6 +21,7 @@ export interface ActionableTask {
   assignedTo: string | null
   ownerId: string | null
   isClientTask: boolean
+  isImported: boolean
 }
 
 export interface TeamMemberGroup {
@@ -89,6 +90,11 @@ function TaskRow({ task }: { task: ActionableTask }) {
           {task.isClientTask && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted">
               Client task
+            </span>
+          )}
+          {task.isImported && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted">
+              imported
             </span>
           )}
         </div>

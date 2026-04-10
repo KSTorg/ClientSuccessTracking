@@ -215,10 +215,15 @@ export function ClientsView({ clients, csms }: ClientsViewProps) {
                       <td className="px-3 py-4">
                         <Link
                           href={`/clients/${c.id}`}
-                          className="block truncate text-kst-white font-medium hover:text-kst-gold transition-colors"
+                          className="flex items-center gap-1.5 text-kst-white font-medium hover:text-kst-gold transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {c.company_name}
+                          <span className="truncate">{c.company_name}</span>
+                          {c.is_imported && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted shrink-0">
+                              imported
+                            </span>
+                          )}
                         </Link>
                       </td>
                       <td className="px-3 py-4">

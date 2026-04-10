@@ -72,6 +72,7 @@ export interface Client {
   joined_date: string | null
   launched_date: string | null
   program_end_date: string | null
+  is_imported: boolean
   notes: string | null
   user_id: string | null
   created_at: string

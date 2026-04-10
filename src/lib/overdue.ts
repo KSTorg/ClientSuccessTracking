@@ -49,7 +49,7 @@ export async function getClientBlockers(
   // Fetch clients (all or one)
   let clientQuery = supabaseAdmin
     .from('clients')
-    .select('id, company_name, program, client_team, assigned_csm')
+    .select('id, company_name, program, client_team, assigned_csm, is_imported')
   if (options.clientId) {
     clientQuery = clientQuery.eq('id', options.clientId)
   }
@@ -59,13 +59,14 @@ export async function getClientBlockers(
     return { blockers: [], totalClients: 0 }
   }
 
-  const clientRows = (clients ?? []) as Array<{
+  const clientRows = ((clients ?? []) as Array<{
     id: string
     company_name: string
     program: string | null
     client_team: Record<string, string | null> | null
     assigned_csm: string | null
-  }>
+    is_imported: boolean | null
+  }>).filter((c) => !c.is_imported)
 
   // Fetch overdue incomplete tasks for those clients
   let taskQuery = supabaseAdmin

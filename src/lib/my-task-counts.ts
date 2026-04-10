@@ -28,7 +28,7 @@ export async function getMyTaskCounts(
       task:tasks ( id, parent_task_id, has_subtasks, order_index,
         stage:stages ( id, order_index )
       ),
-      client:clients ( id, client_team, assigned_csm )
+      client:clients ( id, client_team, assigned_csm, is_imported )
       `
     )
     .neq('status', 'completed')
@@ -42,6 +42,7 @@ export async function getMyTaskCounts(
     assignedTo: string | null
     csmId: string | null
     dueDate: string | null
+    isImported: boolean
   }
 
   const norms: Norm[] = []
@@ -68,6 +69,7 @@ export async function getMyTaskCounts(
       assignedTo: (obj.assigned_to as string | null) ?? null,
       csmId,
       dueDate: (obj.due_date as string | null) ?? null,
+      isImported: (clientObj.is_imported as boolean) ?? false,
     })
   }
 
@@ -88,7 +90,7 @@ export async function getMyTaskCounts(
     const ownerId = first.assignedTo ?? first.csmId
     if (ownerId !== userId) continue
     total++
-    if (first.dueDate && first.dueDate < today) overdue++
+    if (!first.isImported && first.dueDate && first.dueDate < today) overdue++
   }
 
   return { overdue, total }

@@ -302,12 +302,19 @@ export function ClientDetailView({
           <ArrowLeft size={16} />
           Back to clients
         </Link>
-        <h1
-          className="text-5xl md:text-6xl text-kst-gold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          {client.company_name}
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1
+            className="text-5xl md:text-6xl text-kst-gold tracking-tight"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            {client.company_name}
+          </h1>
+          {client.is_imported && (
+            <span className="text-xs px-2 py-1 rounded bg-white/[0.06] text-kst-muted">
+              imported
+            </span>
+          )}
+        </div>
         <p className="mt-3 text-kst-muted">
           {client.contact_name} ·{' '}
           <a

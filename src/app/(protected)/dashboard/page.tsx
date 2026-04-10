@@ -187,8 +187,17 @@ export default async function DashboardPage() {
   const clientMetrics = (clientMetricsRes.data ?? []) as ClientMetricsRow[]
   const taskBottlenecks = (taskPerfRes.data ?? []) as TaskPerformanceRow[]
   const teamPerformance = (teamPerfRes.data ?? []) as TeamPerformanceRow[]
-  const timeToLaunch = (clientOverviewRes.data ??
-    []) as ClientTimeToLaunchRow[]
+  // Filter imported clients from time-to-launch analytics
+  const { data: importedRows } = await supabase
+    .from('clients')
+    .select('company_name')
+    .eq('is_imported', true)
+  const importedNames = new Set(
+    ((importedRows ?? []) as { company_name: string }[]).map((r) => r.company_name)
+  )
+  const timeToLaunch = ((clientOverviewRes.data ?? []) as ClientTimeToLaunchRow[]).filter(
+    (r) => !importedNames.has(r.company_name ?? '')
+  )
 
   const name = profile?.full_name ?? 'there'
 

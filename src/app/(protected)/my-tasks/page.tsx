@@ -25,7 +25,7 @@ export default async function MyTasksPage() {
         id, parent_task_id, has_subtasks, title, order_index,
         stage:stages ( id, name, order_index )
       ),
-      client:clients ( id, company_name, program, client_team, assigned_csm )
+      client:clients ( id, company_name, program, client_team, assigned_csm, is_imported )
       `
     )
     .neq('status', 'completed')
@@ -44,6 +44,7 @@ export default async function MyTasksPage() {
     companyName: string
     program: string | null
     clientCsmId: string | null
+    isImported: boolean
     assignedTo: string | null
     status: string
     dueDate: string | null
@@ -81,6 +82,7 @@ export default async function MyTasksPage() {
       companyName: (clientObj.company_name as string) ?? 'Unknown',
       program: (clientObj.program as string | null) ?? null,
       clientCsmId: csmId,
+      isImported: (clientObj.is_imported as boolean) ?? false,
       assignedTo: (obj.assigned_to as string | null) ?? null,
       status: (obj.status as string) ?? '',
       dueDate: (obj.due_date as string | null) ?? null,
@@ -121,7 +123,7 @@ export default async function MyTasksPage() {
       // Determine who owns this task
       const ownerId = first.assignedTo ?? first.clientCsmId
 
-      const isOverdue = first.dueDate != null && first.dueDate < today
+      const isOverdue = !first.isImported && first.dueDate != null && first.dueDate < today
       let overdueDays = 0
       if (isOverdue && first.dueDate) {
         const due = new Date(first.dueDate + 'T00:00:00')
@@ -143,6 +145,7 @@ export default async function MyTasksPage() {
         assignedTo: first.assignedTo,
         ownerId: ownerId ?? null,
         isClientTask: first.assignedTo === null,
+        isImported: first.isImported,
       })
     }
   }

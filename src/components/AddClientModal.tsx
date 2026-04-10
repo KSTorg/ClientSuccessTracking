@@ -48,6 +48,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
   const [clientTeam, setClientTeam] = useState<ClientTeam>(EMPTY_CLIENT_TEAM)
   const [notes, setNotes] = useState('')
   const [password, setPassword] = useState('')
+  const [isImported, setIsImported] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -70,6 +71,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       setClientTeam(EMPTY_CLIENT_TEAM)
       setNotes('')
       setPassword('')
+      setIsImported(false)
       setFieldErrors({})
       setSubmitError(null)
       setLoading(false)
@@ -127,6 +129,7 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
         notes: notes.trim() || null,
         status: 'onboarding',
         program,
+        is_imported: isImported,
       })
       .select('id')
       .single()
@@ -208,6 +211,17 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
       }
     } catch (err) {
       console.warn('[add client] auto-assign threw:', err)
+    }
+
+    // For imported clients, clear all due dates so nothing shows as overdue
+    if (isImported) {
+      supabase
+        .from('client_tasks')
+        .update({ due_date: null })
+        .eq('client_id', clientId)
+        .then(({ error: clearErr }) => {
+          if (clearErr) console.warn('[add client] clear due dates failed:', clearErr.message)
+        })
     }
 
     // Fire-and-forget Discord notification
@@ -384,6 +398,26 @@ export function AddClientModal({ open, onClose, csms }: AddClientModalProps) {
               </div>
             </div>
           </div>
+
+          <label className="flex items-start gap-3 py-1">
+            <input
+              type="checkbox"
+              checked={isImported}
+              onChange={(e) => setIsImported(e.target.checked)}
+              disabled={loading}
+              className="mt-0.5 h-4 w-4 rounded border-white/20 bg-kst-dark text-kst-gold focus:ring-kst-gold/30 accent-kst-gold"
+            />
+            <div>
+              <span className="text-sm text-kst-white">
+                This is an existing client (import)
+              </span>
+              {isImported && (
+                <p className="text-[11px] text-kst-muted mt-1">
+                  Imported clients are excluded from overdue notifications, task due dates, and time-to-launch analytics.
+                </p>
+              )}
+            </div>
+          </label>
 
           <Field label="Password" error={fieldErrors.password}>
             <input
