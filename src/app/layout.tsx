@@ -16,8 +16,8 @@ const playfairDisplay = Playfair_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: 'KST Tracker — Client Success Tracking',
-    template: '%s · KST Tracker',
+    default: 'KST Client Success',
+    template: '%s · KST Client Success',
   },
   description: 'Premium client success tracking for KST Marketing.',
   icons: {
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: 'KST Tracker',
+    title: 'KST Client Success',
     description: 'Client Success Tracking by KST Marketing',
     type: 'website',
   },
