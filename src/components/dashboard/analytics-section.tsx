@@ -172,7 +172,7 @@ export function AnalyticsSection({
       </div>
 
       {/* A) Global metrics */}
-      <GlobalMetricsBar totals={globalTotals} mrr={mrr} />
+      <GlobalMetricsBar totals={globalTotals} />
 
       {/* B) Weekly trend chart */}
       <div className="mt-6">
@@ -223,24 +223,13 @@ export function AnalyticsSection({
 // A) Global metrics bar
 // ───────────────────────────────────────────────────────────────────────────
 
-function GlobalMetricsBar({ totals, mrr }: { totals: GlobalTotals | null; mrr: MrrData | null }) {
-  const totalMrr = Number(mrr?.total_mrr ?? 0)
+function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
   const items: {
     label: string
     value: string
     accent?: boolean
     icon: React.ReactNode
   }[] = [
-    ...(totalMrr > 0
-      ? [
-          {
-            label: 'MRR',
-            value: `$${Math.round(totalMrr).toLocaleString()}`,
-            accent: true,
-            icon: <Zap size={16} />,
-          },
-        ]
-      : []),
     {
       label: 'Total Revenue',
       value: formatCurrency(totals?.total_revenue),
