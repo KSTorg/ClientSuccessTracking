@@ -32,6 +32,7 @@ export async function getMyTaskCounts(
       `
     )
     .neq('status', 'completed')
+    .not('due_date', 'is', null)
 
   interface Norm {
     id: string

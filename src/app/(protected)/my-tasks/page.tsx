@@ -29,6 +29,7 @@ export default async function MyTasksPage() {
       `
     )
     .neq('status', 'completed')
+    .not('due_date', 'is', null)
 
   // Fetch all team profiles for admin "All Team" view
   const { data: teamProfiles } = await supabase
