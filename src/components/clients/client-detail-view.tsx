@@ -48,6 +48,7 @@ const STATUS_DOT: Record<ClientStatus, string> = {
   launched: 'bg-kst-success',
   paused: 'bg-kst-warning',
   churned: 'bg-kst-error',
+  renewed: 'bg-kst-success',
 }
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
@@ -55,6 +56,7 @@ const STATUS_LABEL: Record<ClientStatus, string> = {
   launched: 'Launched',
   paused: 'Paused',
   churned: 'Churned',
+  renewed: 'Renewed',
 }
 
 type Tab = 'setup' | 'success'

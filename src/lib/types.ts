@@ -1,10 +1,11 @@
-export type ClientStatus = 'onboarding' | 'launched' | 'paused' | 'churned'
+export type ClientStatus = 'onboarding' | 'launched' | 'paused' | 'churned' | 'renewed'
 
 export const CLIENT_STATUSES: ClientStatus[] = [
   'onboarding',
   'launched',
   'paused',
   'churned',
+  'renewed',
 ]
 
 export type Program = 'educator_incubator' | 'accelerator'
