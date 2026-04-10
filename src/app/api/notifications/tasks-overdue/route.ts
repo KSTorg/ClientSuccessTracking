@@ -162,6 +162,61 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // ── Churn risk: program ended, no active subs, not churned ──
+    const { data: churnRisk } = await supabaseAdmin
+      .from('analytics_churn_risk')
+      .select('company_name, program_end_date, client_id')
+      .eq('risk_level', 'at_risk')
+
+    if (churnRisk && churnRisk.length > 0) {
+      const riskMentions = new Set<string>()
+      const riskLines: string[] = []
+
+      for (const c of churnRisk as Array<{
+        company_name: string
+        program_end_date: string | null
+        client_id: string
+      }>) {
+        // Look up CSM for mention
+        const { data: clientRow } = await supabaseAdmin
+          .from('clients')
+          .select('client_team, assigned_csm')
+          .eq('id', c.client_id)
+          .maybeSingle()
+        const cl = clientRow as { client_team: Record<string, string | null> | null; assigned_csm: string | null } | null
+        const csmId = cl?.client_team?.csm ?? cl?.assigned_csm ?? null
+        let csmStr = ''
+        if (csmId) {
+          const { data: csm } = await supabaseAdmin
+            .from('profiles')
+            .select('discord_id, full_name')
+            .eq('id', csmId)
+            .maybeSingle()
+          const csmObj = csm as { discord_id: string | null; full_name: string | null } | null
+          if (csmObj?.discord_id) {
+            csmStr = ` — <@${csmObj.discord_id}>`
+            riskMentions.add(`<@${csmObj.discord_id}>`)
+          } else if (csmObj?.full_name) {
+            csmStr = ` — ${csmObj.full_name}`
+          }
+        }
+        riskLines.push(
+          `• **${c.company_name}** — Program ended ${formatShortDate(c.program_end_date)}, no subscriptions${csmStr}`
+        )
+      }
+
+      const riskEmbed: DiscordEmbed = {
+        title: '⚠️ Churn Risk — No Active Subscriptions',
+        description: riskLines.join('\n'),
+        color: COLORS.gold,
+        timestamp: new Date().toISOString(),
+      }
+      await sendDiscordEmbed(
+        [riskEmbed],
+        riskMentions.size > 0 ? [...riskMentions].join(' ') : undefined
+      )
+    }
+
     return NextResponse.json({
       success: true,
       clientsWithBlockers: blockers.length,

@@ -14,9 +14,11 @@ import { StatusBadge } from '@/components/clients/status-badge'
 import { formatDate } from '@/lib/utils'
 import {
   AnalyticsSection,
+  type ChurnRiskRow,
   type ClientMetricsRow,
   type ClientTimeToLaunchRow,
   type GlobalTotals,
+  type LtvRow,
   type MrrData,
   type RetentionData,
   type ServicePopularityRow,
@@ -94,6 +96,8 @@ export default async function DashboardPage() {
     retentionRes,
     mrrRes,
     servicePopRes,
+    ltvRes,
+    churnRiskRes,
   ] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }),
     supabase
@@ -164,6 +168,16 @@ export default async function DashboardPage() {
       .select('*')
       .gt('active_count', 0)
       .order('active_count', { ascending: false }),
+    supabase
+      .from('analytics_client_ltv')
+      .select('*')
+      .gt('total_subscription_revenue', 0)
+      .order('total_subscription_revenue', { ascending: false })
+      .limit(5),
+    supabase
+      .from('analytics_churn_risk')
+      .select('*')
+      .eq('risk_level', 'at_risk'),
   ])
 
   const totalClients = totalRes.count ?? 0
@@ -222,6 +236,8 @@ export default async function DashboardPage() {
   const retention = (retentionRes.data ?? null) as RetentionData | null
   const mrrData = (mrrRes.data ?? null) as MrrData | null
   const servicePopularity = (servicePopRes.data ?? []) as ServicePopularityRow[]
+  const ltvRows = (ltvRes.data ?? []) as LtvRow[]
+  const churnRisk = (churnRiskRes.data ?? []) as ChurnRiskRow[]
 
   const name = profile?.full_name ?? 'there'
 
@@ -369,6 +385,8 @@ export default async function DashboardPage() {
         retention={retention}
         mrr={mrrData}
         servicePopularity={servicePopularity}
+        ltv={ltvRows}
+        churnRisk={churnRisk}
       />
     </div>
   )

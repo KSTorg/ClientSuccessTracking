@@ -14,7 +14,7 @@ import {
   formatPercent,
   formatRoas,
 } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import { ProgramBadge } from '@/components/clients/program-badge'
 import { SpecialtyBadge } from '@/components/team/specialty-badge'
 import {
@@ -86,6 +86,8 @@ export interface RetentionData {
   avg_renewals_before_churn: number | null
   avg_days_to_churn: number | null
   churned_after_renewal_pct: number | null
+  sub_adoption_rate_pct: number | null
+  clients_with_subs_after_program: number | null
   ei_renewed: number | null
   ei_churned: number | null
   acc_renewed: number | null
@@ -106,6 +108,21 @@ export interface ServicePopularityRow {
   mrr_contribution: number | null
 }
 
+export interface LtvRow {
+  client_id: string | null
+  company_name: string | null
+  active_months: number | null
+  current_mrr: number | null
+  total_subscription_revenue: number | null
+}
+
+export interface ChurnRiskRow {
+  client_id: string | null
+  company_name: string | null
+  program_end_date: string | null
+  risk_level: string | null
+}
+
 interface AnalyticsSectionProps {
   globalTotals: GlobalTotals | null
   weeklyTrend: WeeklyTrendPoint[]
@@ -116,6 +133,8 @@ interface AnalyticsSectionProps {
   retention: RetentionData | null
   mrr: MrrData | null
   servicePopularity: ServicePopularityRow[]
+  ltv: LtvRow[]
+  churnRisk: ChurnRiskRow[]
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -132,6 +151,8 @@ export function AnalyticsSection({
   retention,
   mrr,
   servicePopularity,
+  ltv,
+  churnRisk,
 }: AnalyticsSectionProps) {
   const hasAnyData =
     !!globalTotals ||
@@ -157,7 +178,7 @@ export function AnalyticsSection({
       </div>
 
       {/* A) Global metrics */}
-      <GlobalMetricsBar totals={globalTotals} />
+      <GlobalMetricsBar totals={globalTotals} mrr={mrr} />
 
       {/* B) Weekly trend chart */}
       <div className="mt-6">
@@ -186,6 +207,20 @@ export function AnalyticsSection({
         <MrrPanel data={mrr} />
         <ServicePopularityPanel rows={servicePopularity} />
       </div>
+
+      {/* H) Churn Risk alert */}
+      {churnRisk.length > 0 && (
+        <div className="mt-6">
+          <ChurnRiskPanel rows={churnRisk} />
+        </div>
+      )}
+
+      {/* I) LTV */}
+      {ltv.length > 0 && (
+        <div className="mt-6">
+          <LtvPanel rows={ltv} />
+        </div>
+      )}
     </section>
   )
 }
@@ -194,13 +229,24 @@ export function AnalyticsSection({
 // A) Global metrics bar
 // ───────────────────────────────────────────────────────────────────────────
 
-function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
+function GlobalMetricsBar({ totals, mrr }: { totals: GlobalTotals | null; mrr: MrrData | null }) {
+  const totalMrr = Number(mrr?.total_mrr ?? 0)
   const items: {
     label: string
     value: string
     accent?: boolean
     icon: React.ReactNode
   }[] = [
+    ...(totalMrr > 0
+      ? [
+          {
+            label: 'MRR',
+            value: `$${Math.round(totalMrr).toLocaleString()}`,
+            accent: true,
+            icon: <Zap size={16} />,
+          },
+        ]
+      : []),
     {
       label: 'Total Revenue',
       value: formatCurrency(totals?.total_revenue),
@@ -691,6 +737,19 @@ function RetentionPanel({ data }: { data: RetentionData | null }) {
             </div>
           </div>
 
+          {/* Sub Adoption */}
+          {data?.sub_adoption_rate_pct != null && (
+            <div className="flex items-center justify-between text-sm mb-4">
+              <span className="text-kst-muted">Sub Adoption Rate</span>
+              <span className="text-kst-gold font-semibold">
+                {Number(data.sub_adoption_rate_pct).toFixed(0)}%
+                <span className="text-kst-muted font-normal ml-1 text-xs">
+                  ({fmt(data.clients_with_subs_after_program)} clients)
+                </span>
+              </span>
+            </div>
+          )}
+
           {/* Row 3: Insights (only if any data) */}
           {(data?.avg_renewals_before_churn != null ||
             data?.avg_days_to_churn != null ||
@@ -867,6 +926,107 @@ function ServicePopularityPanel({ rows }: { rows: ServicePopularityRow[] }) {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// J) Churn Risk
+// ───────────────────────────────────────────────────────────────────────────
+
+function ChurnRiskPanel({ rows }: { rows: ChurnRiskRow[] }) {
+  return (
+    <div
+      className="glass-panel p-6 md:p-8"
+      style={{
+        borderColor: 'rgba(201, 168, 76, 0.3)',
+        background:
+          'linear-gradient(135deg, rgba(201,168,76,0.06) 0%, rgba(255,255,255,0.03) 100%)',
+      }}
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <AlertTriangle size={16} className="text-kst-gold" />
+        <h3 className="text-kst-white font-semibold">Churn Risk — No Active Subscriptions</h3>
+      </div>
+      <ul className="space-y-2">
+        {rows.map((r, i) => (
+          <li key={i} className="flex items-center justify-between text-sm py-2 border-b border-white/[0.04] last:border-b-0">
+            <span className="text-kst-white font-medium">{r.company_name ?? '—'}</span>
+            <span className="text-kst-muted text-xs">
+              Program ended {formatDate(r.program_end_date)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// K) Client LTV
+// ───────────────────────────────────────────────────────────────────────────
+
+function LtvPanel({ rows }: { rows: LtvRow[] }) {
+  const avgMonths =
+    rows.length > 0
+      ? rows.reduce((sum, r) => sum + Number(r.active_months ?? 0), 0) / rows.length
+      : 0
+  const avgMrr =
+    rows.length > 0
+      ? rows.reduce((sum, r) => sum + Number(r.current_mrr ?? 0), 0) / rows.length
+      : 0
+
+  return (
+    <div className="glass-panel p-6 md:p-8">
+      <div className="flex items-center gap-2 mb-5">
+        <Zap size={16} className="text-kst-gold" />
+        <h3 className="text-kst-white font-semibold">Client Lifetime Value</h3>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-5">
+        <div>
+          <p className="text-kst-muted text-xs mb-1">Avg Active Months</p>
+          <p className="text-kst-white text-lg font-semibold">{avgMonths.toFixed(1)}</p>
+        </div>
+        <div>
+          <p className="text-kst-muted text-xs mb-1">Avg MRR/Client</p>
+          <p className="text-kst-gold text-lg font-semibold">${Math.round(avgMrr).toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div className="border-t border-white/[0.06] pt-4">
+        <p className="text-kst-muted text-xs uppercase tracking-wider mb-3">Top Clients by Revenue</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-kst-muted text-xs uppercase tracking-wider border-b border-white/[0.06]">
+                <th className="pb-2 font-medium">Client</th>
+                <th className="pb-2 font-medium text-right">Months</th>
+                <th className="pb-2 font-medium text-right">MRR</th>
+                <th className="pb-2 font-medium text-right">Total Rev</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className="border-b border-white/[0.04] last:border-b-0">
+                  <td className="py-2.5 text-kst-white truncate max-w-[140px]">
+                    {r.company_name ?? '—'}
+                  </td>
+                  <td className="py-2.5 text-kst-muted text-right">
+                    {Number(r.active_months ?? 0).toFixed(0)}
+                  </td>
+                  <td className="py-2.5 text-kst-gold text-right font-medium">
+                    ${Math.round(Number(r.current_mrr ?? 0)).toLocaleString()}
+                  </td>
+                  <td className="py-2.5 text-kst-white text-right font-medium">
+                    ${Math.round(Number(r.total_subscription_revenue ?? 0)).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

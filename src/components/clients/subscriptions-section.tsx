@@ -29,6 +29,8 @@ interface Subscription {
 
 interface SubscriptionsSectionProps {
   clientId: string
+  joinedDate?: string | null
+  programEndDate?: string | null
 }
 
 const CYCLE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -53,7 +55,7 @@ function fmtPrice(amount: number, cycle: string): string {
   return `${f}/mo`
 }
 
-export function SubscriptionsSection({ clientId }: SubscriptionsSectionProps) {
+export function SubscriptionsSection({ clientId, joinedDate, programEndDate }: SubscriptionsSectionProps) {
   const supabase = createClient()
   const toast = useToast()
 
@@ -97,6 +99,14 @@ export function SubscriptionsSection({ clientId }: SubscriptionsSectionProps) {
 
   const active = subs.filter((s) => s.status === 'active')
   const cancelled = subs.filter((s) => s.status === 'cancelled')
+
+  // Active months since joined
+  const activeMonths = joinedDate
+    ? Math.max(0, Math.round((Date.now() - new Date(joinedDate + 'T00:00:00').getTime()) / (30.44 * 86400000)))
+    : null
+
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const programEnded = programEndDate != null && programEndDate < todayIso
 
   // MRR: monthly subs full, quarterly / 3, annual / 12, one-time excluded
   const mrr = active.reduce((sum, s) => {
@@ -144,6 +154,11 @@ export function SubscriptionsSection({ clientId }: SubscriptionsSectionProps) {
               — ${Math.round(mrr).toLocaleString()}/mo MRR
             </span>
           )}
+          {activeMonths != null && activeMonths > 0 && (
+            <span className="text-kst-muted text-xs ml-1">
+              · Active {activeMonths}mo
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -158,9 +173,16 @@ export function SubscriptionsSection({ clientId }: SubscriptionsSectionProps) {
       {loading ? (
         <p className="text-kst-muted text-sm py-4 text-center">Loading...</p>
       ) : subs.length === 0 ? (
-        <p className="text-kst-muted text-sm py-6 text-center">
-          No subscriptions yet. Add services after the onboarding program.
-        </p>
+        <div className="py-6 text-center">
+          <p className="text-kst-muted text-sm">
+            No subscriptions yet. Add services after the onboarding program.
+          </p>
+          {programEnded && active.length === 0 && (
+            <p className="text-kst-gold text-xs mt-2">
+              Program ended — consider adding subscriptions
+            </p>
+          )}
+        </div>
       ) : (
         <>
           {/* Active */}

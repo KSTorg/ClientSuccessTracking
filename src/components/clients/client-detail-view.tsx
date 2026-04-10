@@ -606,7 +606,11 @@ export function ClientDetailView({
       </div>
 
       {/* Subscriptions — team only */}
-      <SubscriptionsSection clientId={client.id} />
+      <SubscriptionsSection
+        clientId={client.id}
+        joinedDate={client.joined_date ?? client.created_at}
+        programEndDate={programEndDate}
+      />
 
       {/* Notes */}
       <div className="glass-panel p-6 mb-6">
