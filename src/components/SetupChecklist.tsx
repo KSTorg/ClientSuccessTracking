@@ -931,7 +931,6 @@ function TopLevelTask({
       >
         {/* Col 1 — status circle */}
         <div
-          className="mt-0.5"
           onClick={(e) => !hasSubs && e.stopPropagation()}
         >
           {hasSubs ? (
