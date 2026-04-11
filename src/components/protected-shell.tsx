@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -63,6 +63,14 @@ export function ProtectedShell({
 }: ProtectedShellProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const mainRef = useRef<HTMLDivElement>(null)
+
+  // Reset scroll position when navigating to a new page
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0
+    }
+  }, [pathname])
 
   const navItems = getNavItems(role)
   const displayName = fullName || email
@@ -167,6 +175,7 @@ export function ProtectedShell({
           bar and sidebar never drift. The left margin only kicks in
           at md+ because the mobile sidebar is an overlay, not inline. */}
       <main
+        ref={mainRef}
         className="p-4 md:p-8 md:ml-[260px]"
         style={{
           marginTop: 64,
