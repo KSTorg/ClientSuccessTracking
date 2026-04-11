@@ -123,7 +123,8 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
           className="inline-flex items-center gap-2 px-5 h-11 rounded-xl bg-kst-gold text-kst-black font-semibold hover:bg-kst-gold-light transition-colors text-sm"
         >
           <Plus size={16} />
-          Add Client
+          <span className="hidden sm:inline">Add Client</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 
@@ -181,7 +182,7 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
         ))}
       </div>
 
-      {/* Table */}
+      {/* Empty state */}
       {clients.length === 0 ? (
         <div className="glass-panel p-12 md:p-16 text-center flex flex-col items-center">
           <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center mb-5">
@@ -204,146 +205,241 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
           </button>
         </div>
       ) : (
-        <div className="glass-panel overflow-hidden">
-          <div className="overflow-x-auto">
-            <table
-              className="w-full text-sm"
-              style={{ tableLayout: 'fixed' }}
-            >
-              <colgroup>
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '18%' }} />
-              </colgroup>
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider border-b border-white/[0.06]">
-                  {COLUMNS.map((col) => {
-                    const isActive = sortBy === col.key
+        <>
+          {/* ── Mobile card layout (below md) ─────────────────────────── */}
+          <div className="md:hidden flex flex-col gap-3">
+            {filtered.map((c) => {
+              const pct =
+                c.task_total > 0
+                  ? Math.round((c.task_completed / c.task_total) * 100)
+                  : 0
+              const hasSubs = clientsWithSubs?.includes(c.id)
+
+              return (
+                <Link
+                  key={c.id}
+                  href={`/clients/${c.id}`}
+                  className="glass-panel-sm glass-panel-interactive block px-4 py-4"
+                >
+                  {/* Row 1: Company name + badges */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-kst-white font-semibold text-sm truncate">
+                      {c.company_name}
+                    </span>
+                    {hasSubs && (
+                      <DollarSign size={12} className="text-kst-gold shrink-0" />
+                    )}
+                    {c.is_imported && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted shrink-0">
+                        imported
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Row 2: Contact + CSM */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-kst-muted text-xs truncate">
+                      {c.contact_name}
+                    </span>
+                    <span className="text-xs truncate ml-2">
+                      {c.csm?.full_name ? (
+                        <>
+                          <span className="text-white/30 mr-1">CSM</span>
+                          <span className="text-kst-white">{c.csm.full_name}</span>
+                        </>
+                      ) : (
+                        <span className="text-white/30">No CSM</span>
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Row 3: Status + Program badges */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <StatusBadge status={c.status} />
+                    <ProgramBadge program={c.program} short />
+                  </div>
+
+                  {/* Row 4: Dates */}
+                  <div className="flex items-center gap-4 text-xs mb-3">
+                    <div>
+                      <span className="text-white/30 mr-1">Joined</span>
+                      <span className="text-kst-muted">
+                        {formatDate(c.joined_date ?? c.created_at)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/30 mr-1">Ends</span>
+                      <EndDateInline
+                        programEndDate={c.program_end_date}
+                        hasActiveSubs={!!hasSubs}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 5: Progress bar */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                      <div
+                        className="h-full bg-kst-gold rounded-full transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="text-kst-muted text-xs w-8 text-right shrink-0">
+                      {pct}%
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+            {filtered.length === 0 && (
+              <div className="glass-panel-sm p-8 text-center text-kst-muted text-sm">
+                No clients match your filters.
+              </div>
+            )}
+          </div>
+
+          {/* ── Desktop table (md and up) ──────────────────────────────── */}
+          <div className="hidden md:block glass-panel overflow-hidden">
+            <div className="overflow-x-auto">
+              <table
+                className="w-full text-sm"
+                style={{ tableLayout: 'fixed' }}
+              >
+                <colgroup>
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '18%' }} />
+                </colgroup>
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-wider border-b border-white/[0.06]">
+                    {COLUMNS.map((col) => {
+                      const isActive = sortBy === col.key
+                      return (
+                        <th key={col.key} className="px-3 py-3 font-medium">
+                          <button
+                            type="button"
+                            onClick={() => handleSort(col.key)}
+                            className={cn(
+                              'flex items-center gap-1 transition-colors',
+                              isActive ? 'text-kst-gold' : 'text-kst-muted hover:text-kst-white'
+                            )}
+                          >
+                            <span className="truncate">{col.label}</span>
+                            {isActive && (sortDir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
+                          </button>
+                        </th>
+                      )
+                    })}
+                    <th className="px-3 py-3 font-medium text-kst-muted">
+                      <div className="truncate">CSM</div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((c) => {
+                    const pct =
+                      c.task_total > 0
+                        ? Math.round((c.task_completed / c.task_total) * 100)
+                        : 0
+                    const hasSubs = clientsWithSubs?.includes(c.id)
                     return (
-                      <th key={col.key} className="px-3 py-3 font-medium">
-                        <button
-                          type="button"
-                          onClick={() => handleSort(col.key)}
-                          className={cn(
-                            'flex items-center gap-1 transition-colors',
-                            isActive ? 'text-kst-gold' : 'text-kst-muted hover:text-kst-white'
-                          )}
-                        >
-                          <span className="truncate">{col.label}</span>
-                          {isActive && (sortDir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
-                        </button>
-                      </th>
+                      <tr
+                        key={c.id}
+                        className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.03] transition-colors cursor-pointer"
+                        onClick={() => {
+                          window.location.href = `/clients/${c.id}`
+                        }}
+                      >
+                        <td className="px-3 py-4">
+                          <Link
+                            href={`/clients/${c.id}`}
+                            className="flex items-center gap-1.5 text-kst-white font-medium hover:text-kst-gold transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="truncate">{c.company_name}</span>
+                            {hasSubs && (
+                              <DollarSign size={12} className="text-kst-gold shrink-0" />
+                            )}
+                            {c.is_imported && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted shrink-0">
+                                imported
+                              </span>
+                            )}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="truncate text-kst-white">
+                            {c.contact_name}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="truncate">
+                            <StatusBadge status={c.status} />
+                          </div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="truncate">
+                            <ProgramBadge program={c.program} />
+                          </div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="truncate text-kst-muted">
+                            {formatDate(c.joined_date ?? c.created_at)}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <EndDateInline
+                            programEndDate={c.program_end_date}
+                            hasActiveSubs={!!hasSubs}
+                          />
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                              <div
+                                className="h-full bg-kst-gold rounded-full transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-kst-muted text-xs w-8 text-right shrink-0">
+                              {pct}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="truncate">
+                            {c.csm?.full_name ? (
+                              <span className="text-kst-white">
+                                {c.csm.full_name}
+                              </span>
+                            ) : (
+                              <span className="text-kst-muted">Unassigned</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     )
                   })}
-                  <th className="px-3 py-3 font-medium text-kst-muted">
-                    <div className="truncate">CSM</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => {
-                  const pct =
-                    c.task_total > 0
-                      ? Math.round((c.task_completed / c.task_total) * 100)
-                      : 0
-                  const hasSubs = clientsWithSubs?.includes(c.id)
-                  return (
-                    <tr
-                      key={c.id}
-                      className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.03] transition-colors cursor-pointer"
-                      onClick={() => {
-                        window.location.href = `/clients/${c.id}`
-                      }}
-                    >
-                      <td className="px-3 py-4">
-                        <Link
-                          href={`/clients/${c.id}`}
-                          className="flex items-center gap-1.5 text-kst-white font-medium hover:text-kst-gold transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <span className="truncate">{c.company_name}</span>
-                          {hasSubs && (
-                            <DollarSign size={12} className="text-kst-gold shrink-0" />
-                          )}
-                          {c.is_imported && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted shrink-0">
-                              imported
-                            </span>
-                          )}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="truncate text-kst-white">
-                          {c.contact_name}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="truncate">
-                          <StatusBadge status={c.status} />
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="truncate">
-                          <ProgramBadge program={c.program} />
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="truncate text-kst-muted">
-                          {formatDate(c.joined_date ?? c.created_at)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <EndDateCell
-                          programEndDate={c.program_end_date}
-                          hasActiveSubs={!!hasSubs}
-                        />
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                            <div
-                              className="h-full bg-kst-gold rounded-full transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className="text-kst-muted text-xs w-8 text-right shrink-0">
-                            {pct}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-4">
-                        <div className="truncate">
-                          {c.csm?.full_name ? (
-                            <span className="text-kst-white">
-                              {c.csm.full_name}
-                            </span>
-                          ) : (
-                            <span className="text-kst-muted">Unassigned</span>
-                          )}
-                        </div>
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-5 py-10 text-center text-kst-muted text-sm"
+                      >
+                        No clients match your filters.
                       </td>
                     </tr>
-                  )
-                })}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-5 py-10 text-center text-kst-muted text-sm"
-                    >
-                      No clients match your filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       <AddClientModal
@@ -355,12 +451,14 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
   )
 }
 
+// ─── Shared end-date helper ────────────────────────────────────────────────
+
 const MONTH_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
-function EndDateCell({ programEndDate, hasActiveSubs }: { programEndDate: string | null; hasActiveSubs: boolean }) {
+function EndDateInline({ programEndDate, hasActiveSubs }: { programEndDate: string | null; hasActiveSubs: boolean }) {
   if (hasActiveSubs) {
     return <span className="text-kst-success text-sm truncate">Active</span>
   }
