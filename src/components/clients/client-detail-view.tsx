@@ -601,6 +601,7 @@ export function ClientDetailView({
         ) : (
           <SuccessTracking
             clientId={client.id}
+            clientName={client.company_name}
             launchedDate={launchedDate!}
           />
         )}

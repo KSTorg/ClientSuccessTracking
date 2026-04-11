@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 
 interface SuccessTrackingProps {
   clientId: string
+  clientName?: string
   launchedDate: string
 }
 
@@ -204,6 +205,7 @@ function parseNum(s: string): number | undefined {
 
 export function SuccessTracking({
   clientId,
+  clientName,
   launchedDate,
 }: SuccessTrackingProps) {
   const supabase = useMemo(() => createClient(), [])
@@ -277,6 +279,7 @@ export function SuccessTracking({
           <WeekCard
             key={w}
             clientId={clientId}
+            clientName={clientName}
             currentUserId={currentUserId}
             weekNum={w}
             weekStart={start}
@@ -296,6 +299,7 @@ export function SuccessTracking({
 
 interface WeekCardProps {
   clientId: string
+  clientName?: string
   currentUserId: string | null
   weekNum: number
   weekStart: Date
@@ -306,6 +310,7 @@ interface WeekCardProps {
 
 function WeekCard({
   clientId,
+  clientName,
   currentUserId,
   weekNum,
   weekStart,
@@ -467,9 +472,16 @@ function WeekCard({
         className="w-full flex items-start justify-between gap-4 px-6 py-5 text-left hover:bg-white/[0.02] transition-colors"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-kst-white font-semibold">Week {weekNum}</p>
+          {clientName && (
+            <p
+              className="text-kst-gold text-lg font-semibold"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {clientName}
+            </p>
+          )}
           <p className="text-kst-muted text-xs mt-0.5">
-            {formatRange(weekStart, weekEnd)}
+            Week {weekNum} — {formatRange(weekStart, weekEnd)}
           </p>
           {!expanded && (
             <p
