@@ -40,6 +40,7 @@ interface RecentClient {
 interface LaunchedRow {
   id: string
   company_name: string
+  contact_name: string
   launched_date: string
 }
 
@@ -115,7 +116,7 @@ export default async function DashboardPage() {
       .limit(5),
     supabase
       .from('clients')
-      .select('id, company_name, launched_date')
+      .select('id, company_name, contact_name, launched_date')
       .not('launched_date', 'is', null)
       .order('launched_date', { ascending: false }),
     (() => {
@@ -190,7 +191,7 @@ export default async function DashboardPage() {
   const launchedList = (launchedListRes.data ?? []) as LaunchedRow[]
 
   // Compute "Reports Due This Week"
-  let reportsDue: { id: string; company_name: string; weekNum: number }[] = []
+  let reportsDue: { id: string; company_name: string; contact_name: string; weekNum: number }[] = []
   if (launchedList.length > 0) {
     const ids = launchedList.map((c) => c.id)
     const { data: existingReports } = await supabase
@@ -213,6 +214,7 @@ export default async function DashboardPage() {
         reportsDue.push({
           id: c.id,
           company_name: c.company_name,
+          contact_name: c.contact_name,
           weekNum,
         })
       }
@@ -358,8 +360,8 @@ export default async function DashboardPage() {
                       <p className="text-kst-white font-medium truncate">
                         {d.company_name}
                       </p>
-                      <p className="text-kst-muted text-xs">
-                        Week {d.weekNum}
+                      <p className="text-kst-muted text-xs truncate">
+                        {d.contact_name} · Week {d.weekNum}
                       </p>
                     </div>
                     <span className="text-kst-gold text-xs font-medium shrink-0">
