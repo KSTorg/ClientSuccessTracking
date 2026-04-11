@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ProtectedShell } from '@/components/protected-shell'
 import { ToastProvider } from '@/components/ui/toast'
 import { getMyTaskCounts } from '@/lib/my-task-counts'
+import { AuthRefresh } from '@/components/auth-refresh'
 
 export default async function ProtectedLayout({
   children,
@@ -30,6 +31,7 @@ export default async function ProtectedLayout({
 
   return (
     <ToastProvider>
+      <AuthRefresh />
       <ProtectedShell
         fullName={data.profile.full_name ?? ''}
         email={data.user.email ?? ''}
