@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { sendDiscordEmbed, COLORS, type DiscordEmbed } from '@/lib/discord'
-import { getClientBlockers, formatShortDate } from '@/lib/overdue'
+import { getClientBlockers, clientLabel, formatShortDate } from '@/lib/overdue'
 
 interface Body {
   clientId?: string
@@ -57,15 +57,16 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    // Look up client for the display name
+    // Look up client for the display name + contact
     const { data: clientRow } = await supabaseAdmin
       .from('clients')
-      .select('company_name')
+      .select('company_name, contact_name')
       .eq('id', clientId)
       .maybeSingle()
-    const companyName =
-      (clientRow as { company_name: string | null } | null)?.company_name ??
-      'Client'
+    const cl = clientRow as { company_name: string | null; contact_name: string | null } | null
+    const companyName = cl?.company_name ?? 'Client'
+    const contactName = cl?.contact_name ?? null
+    const displayName = clientLabel(companyName, contactName)
 
     // Compute current blockers for just this client
     const { blockers } = await getClientBlockers(supabaseAdmin, { clientId })
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
       await sendDiscordEmbed([
         {
           title: '🎉 All Caught Up!',
-          description: `**${companyName}** has no more overdue tasks.`,
+          description: `**${displayName}** has no more overdue tasks.`,
           color: COLORS.gold,
           timestamp: new Date().toISOString(),
         },
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     const embed: DiscordEmbed = {
       title: '✅ Task Completed',
-      description: `**${companyName}** — "${taskTitle}"\nCompleted by: ${completedByName}`,
+      description: `**${displayName}** — "${taskTitle}"\nCompleted by: ${completedByName}`,
       color: COLORS.green,
       fields: [
         {

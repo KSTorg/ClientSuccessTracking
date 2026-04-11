@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { sendDiscordEmbed, COLORS } from '@/lib/discord'
-import { formatProgramLabel, formatTodayLong } from '@/lib/overdue'
+import { clientLabel, formatProgramLabel, formatTodayLong } from '@/lib/overdue'
 
 interface Body {
   type?: 'new_client' | 'launched'
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     const { data: client } = await supabaseAdmin
       .from('clients')
       .select(
-        'id, company_name, program, joined_date, launched_date, client_team, assigned_csm, created_at'
+        'id, company_name, contact_name, program, joined_date, launched_date, client_team, assigned_csm, created_at'
       )
       .eq('id', clientId)
       .maybeSingle()
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
 
     const c = client as {
       company_name: string
+      contact_name: string | null
       program: string | null
       joined_date: string | null
       launched_date: string | null
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
         [
           {
             title: '🆕 New Client',
-            description: `**${c.company_name}** (${formatProgramLabel(c.program)})`,
+            description: `**${clientLabel(c.company_name, c.contact_name)}** (${formatProgramLabel(c.program)})`,
             color: COLORS.blue,
             fields: [
               { name: 'CSM', value: csmDisplay, inline: true },
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
         [
           {
             title: '🚀 Client Launched!',
-            description: `**${c.company_name}**`,
+            description: `**${clientLabel(c.company_name, c.contact_name)}**`,
             color: COLORS.gold,
             fields: [
               { name: 'Launched by', value: callerName, inline: true },

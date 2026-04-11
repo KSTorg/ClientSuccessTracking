@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendDiscordEmbed, COLORS, type DiscordEmbed } from '@/lib/discord'
 import {
   getClientBlockers,
+  clientLabel,
   formatShortDate,
   formatTodayLong,
   formatProgramLabel,
@@ -47,7 +48,7 @@ function buildEmbed(
     }
 
     lines.push(
-      `**${c.companyName}** (${formatProgramLabel(c.program)})\n` +
+      `**${clientLabel(c.companyName, c.contactName)}** (${formatProgramLabel(c.program)})\n` +
         `⚠️ ${b.stageName}: "${b.taskTitle}" — Due ${formatShortDate(b.dueDate)}\n` +
         `→ ${assigneeStr}`
     )
@@ -101,17 +102,19 @@ export async function POST(request: NextRequest) {
     const { embeds, content } = buildEmbed(blockers, totalClients)
     await sendDiscordEmbed(embeds, content)
 
-    // ── Programs ending soon (next 7 days) ──
+    // ── Programs ending in exactly 7 or 3 days ──
     const todayStr = new Date().toISOString().slice(0, 10)
+    const in3 = new Date()
+    in3.setDate(in3.getDate() + 3)
+    const in3Str = in3.toISOString().slice(0, 10)
     const in7 = new Date()
     in7.setDate(in7.getDate() + 7)
     const in7Str = in7.toISOString().slice(0, 10)
 
     const { data: endingSoon } = await supabaseAdmin
       .from('clients')
-      .select('id, company_name, program, program_end_date, client_team, assigned_csm')
-      .gte('program_end_date', todayStr)
-      .lte('program_end_date', in7Str)
+      .select('id, company_name, contact_name, program, program_end_date, client_team, assigned_csm')
+      .in('program_end_date', [in3Str, in7Str])
 
     if (endingSoon && endingSoon.length > 0) {
       const endMentions = new Set<string>()
@@ -119,6 +122,7 @@ export async function POST(request: NextRequest) {
 
       for (const c of endingSoon as Array<{
         company_name: string
+        contact_name: string | null
         program: string | null
         program_end_date: string
         client_team: Record<string, string | null> | null
@@ -146,7 +150,7 @@ export async function POST(request: NextRequest) {
           }
         }
         endLines.push(
-          `• **${c.company_name}** — ${formatProgramLabel(c.program)} ends ${formatShortDate(c.program_end_date)} (${daysLeft}d)${csmStr}`
+          `• **${clientLabel(c.company_name, c.contact_name)}** — ${formatProgramLabel(c.program)} ends ${formatShortDate(c.program_end_date)} (${daysLeft}d)${csmStr}`
         )
       }
 
@@ -200,8 +204,17 @@ export async function POST(request: NextRequest) {
             csmStr = ` — ${csmObj.full_name}`
           }
         }
+        // Look up contact name
+        const { data: contactRow } = await supabaseAdmin
+          .from('client_contacts')
+          .select('full_name')
+          .eq('client_id', c.client_id)
+          .eq('is_primary', true)
+          .maybeSingle()
+        const contactName = (contactRow as { full_name: string | null } | null)?.full_name ?? null
+
         riskLines.push(
-          `• **${c.company_name}** — Program ended ${formatShortDate(c.program_end_date)}, no subscriptions${csmStr}`
+          `• **${clientLabel(c.company_name, contactName)}** — Program ended ${formatShortDate(c.program_end_date)}, no subscriptions${csmStr}`
         )
       }
 

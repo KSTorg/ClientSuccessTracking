@@ -14,6 +14,7 @@ export interface Blocker {
 export interface ClientBlockers {
   clientId: string
   companyName: string
+  contactName: string | null
   program: string | null
   blockers: Blocker[]
 }
@@ -49,7 +50,7 @@ export async function getClientBlockers(
   // Fetch clients (all or one)
   let clientQuery = supabaseAdmin
     .from('clients')
-    .select('id, company_name, program, client_team, assigned_csm, is_imported')
+    .select('id, company_name, contact_name, program, client_team, assigned_csm, is_imported')
   if (options.clientId) {
     clientQuery = clientQuery.eq('id', options.clientId)
   }
@@ -62,6 +63,7 @@ export async function getClientBlockers(
   const clientRows = ((clients ?? []) as Array<{
     id: string
     company_name: string
+    contact_name: string | null
     program: string | null
     client_team: Record<string, string | null> | null
     assigned_csm: string | null
@@ -194,6 +196,7 @@ export async function getClientBlockers(
     result.push({
       clientId: client.id,
       companyName: client.company_name,
+      contactName: client.contact_name,
       program: client.program,
       blockers: [
         {
@@ -253,6 +256,10 @@ export function formatProgramLabel(program: string | null): string {
   if (program === 'accelerator') return 'Accelerator'
   if (program === 'educator_incubator') return 'Educator Incubator'
   return program ?? '—'
+}
+
+export function clientLabel(companyName: string, contactName: string | null): string {
+  return contactName ? `${companyName} (${contactName})` : companyName
 }
 
 export function mentionFor(
