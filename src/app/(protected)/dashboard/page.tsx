@@ -219,6 +219,7 @@ export default async function DashboardPage() {
         })
       }
     }
+    reportsDue = reportsDue.slice(0, 5)
   }
 
   // ── Analytics data (safe fallbacks so the section renders even
