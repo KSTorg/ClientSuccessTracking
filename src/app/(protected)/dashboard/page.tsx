@@ -100,7 +100,7 @@ export default async function DashboardPage() {
     ltvRes,
     churnRiskRes,
   ] = await Promise.all([
-    supabase.from('clients').select('*', { count: 'exact', head: true }),
+    supabase.from('clients').select('*', { count: 'exact', head: true }).in('status', ['onboarding', 'launched']),
     supabase
       .from('clients')
       .select('*', { count: 'exact', head: true })
@@ -108,7 +108,7 @@ export default async function DashboardPage() {
     supabase
       .from('clients')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'launched'),
+      .not('launched_date', 'is', null),
     supabase
       .from('clients')
       .select('id, company_name, contact_name, status, joined_date, created_at')
@@ -262,7 +262,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
         <StatCard
           icon={<Users size={20} />}
-          label="Total Clients"
+          label="Active Clients"
           value={totalClients}
         />
         <StatCard
@@ -272,7 +272,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           icon={<Rocket size={20} />}
-          label="Launched"
+          label="Launched Total"
           value={launchedCount}
         />
         <StatCard
