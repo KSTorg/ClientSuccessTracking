@@ -34,6 +34,12 @@ export interface GlobalTotals {
   global_cpl: number | null
   total_leads: number | null
   total_students_enrolled: number | null
+  total_cash_collected: number | null
+  global_cost_per_call: number | null
+  global_cost_per_sale: number | null
+  global_show_rate: number | null
+  total_calls_booked: number | null
+  total_calls_showed: number | null
 }
 
 export interface ClientMetricsRow {
@@ -47,6 +53,10 @@ export interface ClientMetricsRow {
   total_leads: number | null
   total_enrolled: number | null
   close_rate: number | null
+  total_cash_collected: number | null
+  overall_cost_per_call: number | null
+  overall_cost_per_sale: number | null
+  overall_show_rate: number | null
 }
 
 export interface TaskPerformanceRow {
@@ -263,6 +273,27 @@ function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
       value: formatNumber(totals?.total_students_enrolled),
       icon: <Users size={16} />,
     },
+    {
+      label: 'Cash Collected',
+      value: formatCurrency(totals?.total_cash_collected),
+      accent: true,
+      icon: <Zap size={16} />,
+    },
+    {
+      label: 'Cost Per Call',
+      value: formatCurrency(totals?.global_cost_per_call),
+      icon: <BarChart3 size={16} />,
+    },
+    {
+      label: 'Cost Per Sale',
+      value: formatCurrency(totals?.global_cost_per_sale),
+      icon: <BarChart3 size={16} />,
+    },
+    {
+      label: 'Show Rate',
+      value: formatPercent(totals?.global_show_rate),
+      icon: <Users size={16} />,
+    },
   ]
 
   return (
@@ -316,15 +347,19 @@ function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
             style={{ tableLayout: 'fixed' }}
           >
             <colgroup>
-              <col style={{ width: '24%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '5%' }} />
               <col style={{ width: '9%' }} />
               <col style={{ width: '9%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '6%' }} />
               <col style={{ width: '8%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '7%' }} />
             </colgroup>
             <thead>
               <tr className="text-left text-kst-muted text-[11px] uppercase tracking-wider border-t border-white/[0.06]">
@@ -354,6 +389,18 @@ function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
                 </th>
                 <th className="px-3 py-3 font-medium">
                   <div className="truncate">Close %</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Cash</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">CPC</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">CPS</div>
+                </th>
+                <th className="px-3 py-3 font-medium">
+                  <div className="truncate">Show %</div>
                 </th>
               </tr>
             </thead>
@@ -430,6 +477,26 @@ function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
                     <td className="px-3 py-4">
                       <div className="truncate text-kst-muted">
                         {formatPercent(r.close_rate)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatCurrencyCompact(r.total_cash_collected)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatCurrency(r.overall_cost_per_call)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-white">
+                        {formatCurrency(r.overall_cost_per_sale)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="truncate text-kst-muted">
+                        {formatPercent(r.overall_show_rate)}
                       </div>
                     </td>
                   </tr>

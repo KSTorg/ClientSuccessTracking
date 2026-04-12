@@ -36,6 +36,7 @@ type MetricKey =
   | 'calls_showed_up'
   | 'students_enrolled'
   | 'revenue_collected'
+  | 'cash_collected'
 
 interface InputMetricDef {
   key: MetricKey
@@ -75,6 +76,7 @@ const INPUT_METRICS: InputMetricDef[] = [
   { key: 'calls_showed_up', label: 'Calls Showed Up' },
   { key: 'students_enrolled', label: 'Students Enrolled' },
   { key: 'revenue_collected', label: 'Revenue Collected', prefix: '$' },
+  { key: 'cash_collected', label: 'Cash Collected', prefix: '$' },
 ]
 
 const CALC_METRICS: CalcMetricDef[] = [
@@ -111,6 +113,33 @@ const CALC_METRICS: CalcMetricDef[] = [
     compute: (m) =>
       m.calls_showed_up && m.students_enrolled != null
         ? (m.students_enrolled / m.calls_showed_up) * 100
+        : null,
+    format: (v) => `${v.toFixed(1)}%`,
+  },
+  {
+    key: 'cost_per_call',
+    label: 'Cost Per Call',
+    compute: (m) =>
+      m.calls_booked && m.ad_spend != null
+        ? m.ad_spend / m.calls_booked
+        : null,
+    format: (v) => `$${v.toFixed(2)}`,
+  },
+  {
+    key: 'cost_per_sale',
+    label: 'Cost Per Sale',
+    compute: (m) =>
+      m.students_enrolled && m.ad_spend != null
+        ? m.ad_spend / m.students_enrolled
+        : null,
+    format: (v) => `$${v.toFixed(2)}`,
+  },
+  {
+    key: 'show_rate',
+    label: 'Show Rate',
+    compute: (m) =>
+      m.calls_booked && m.calls_showed_up != null
+        ? (m.calls_showed_up / m.calls_booked) * 100
         : null,
     format: (v) => `${v.toFixed(1)}%`,
   },
@@ -510,17 +539,17 @@ function WeekCard({
         className="w-full flex items-start justify-between gap-4 px-6 py-5 text-left hover:bg-white/[0.02] transition-colors"
       >
         <div className="min-w-0 flex-1">
+          <p
+            className="text-kst-gold text-lg font-semibold"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            Week {weekNum} — {formatRange(weekStart, weekEnd)}
+          </p>
           {clientName && (
-            <p
-              className="text-kst-gold text-lg font-semibold"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
+            <p className="text-kst-muted text-xs mt-0.5">
               {clientName}
             </p>
           )}
-          <p className="text-kst-muted text-xs mt-0.5">
-            Week {weekNum} — {formatRange(weekStart, weekEnd)}
-          </p>
           {!expanded && (
             <p
               className={cn(
