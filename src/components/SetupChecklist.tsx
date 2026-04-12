@@ -320,6 +320,48 @@ export function SetupChecklist({
     }
   }, [clientId, supabase])
 
+  // Realtime: sync task changes from other users
+  useEffect(() => {
+    const channel = supabase
+      .channel(`tasks-${clientId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'client_tasks',
+          filter: `client_id=eq.${clientId}`,
+        },
+        (payload) => {
+          const updated = payload.new as {
+            id: string
+            status: string
+            completed_at: string | null
+            assigned_to: string | null
+            due_date: string | null
+          }
+          setRows((prev) =>
+            prev.map((r) =>
+              r.id === updated.id
+                ? {
+                    ...r,
+                    status: updated.status as TaskStatus,
+                    completed_at: updated.completed_at,
+                    assigned_to: updated.assigned_to,
+                    due_date: updated.due_date,
+                  }
+                : r
+            )
+          )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, clientId])
+
   // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return

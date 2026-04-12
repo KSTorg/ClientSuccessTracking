@@ -358,6 +358,44 @@ function WeekCard({
     return out
   }, [metricInputs])
 
+  // Realtime: sync changes from other users
+  useEffect(() => {
+    const channel = supabase
+      .channel(`report-${clientId}-${weekNum}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'weekly_reports',
+          filter: `client_id=eq.${clientId}`,
+        },
+        (payload) => {
+          const row = payload.new as WeeklyReportRow | undefined
+          if (!row || row.week_number !== weekNum) return
+          if (dirtyRef.current) return
+
+          if (row.metrics) {
+            const updated: Record<string, string> = {}
+            for (const m of INPUT_METRICS) {
+              const v = row.metrics[m.key]
+              if (v !== null && v !== undefined) updated[m.key] = String(v)
+            }
+            setMetricInputs(updated)
+          }
+          setBottlenecks(row.bottlenecks ?? '')
+          setNextSteps(row.next_steps ?? '')
+          setPriorities(row.current_priorities ?? '')
+          setReportExists(true)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, clientId, weekNum])
+
   const doSave = useCallback(async () => {
     setSaveStatus('saving')
     setSaveError(null)

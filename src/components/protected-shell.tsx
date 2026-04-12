@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Briefcase,
   CheckSquare,
@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { SignOutButton } from '@/components/sign-out-button'
+import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
 
@@ -62,8 +63,11 @@ export function ProtectedShell({
   children,
 }: ProtectedShellProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const mainRef = useRef<HTMLDivElement>(null)
+  const supabase = useMemo(() => createClient(), [])
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Reset scroll position when navigating to a new page
   useEffect(() => {
@@ -71,6 +75,43 @@ export function ProtectedShell({
       mainRef.current.scrollTop = 0
     }
   }, [pathname])
+
+  // Realtime: auto-refresh dashboard/my-tasks when key tables change
+  useEffect(() => {
+    const shouldListen =
+      pathname === '/dashboard' ||
+      pathname === '/my-tasks'
+    if (!shouldListen) return
+
+    function debouncedRefresh() {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      refreshTimer.current = setTimeout(() => router.refresh(), 1000)
+    }
+
+    const channel = supabase
+      .channel('global-refresh')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'client_tasks' },
+        debouncedRefresh
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'weekly_reports' },
+        debouncedRefresh
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'clients' },
+        debouncedRefresh
+      )
+      .subscribe()
+
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, pathname, router])
 
   const navItems = getNavItems(role)
   const displayName = fullName || email
