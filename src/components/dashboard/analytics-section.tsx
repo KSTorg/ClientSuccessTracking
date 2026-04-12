@@ -241,6 +241,7 @@ function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
     accent?: boolean
     icon: React.ReactNode
   }[] = [
+    // Row 1
     {
       label: 'Total Revenue',
       value: formatCurrency(totals?.total_revenue),
@@ -258,14 +259,15 @@ function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
       accent: true,
       icon: <Rocket size={16} />,
     },
-    {
-      label: 'Global CPL',
-      value: formatCurrency(totals?.global_cpl),
-      icon: <BarChart3 size={16} />,
-    },
+    // Row 2
     {
       label: 'Total Leads',
       value: formatNumber(totals?.total_leads),
+      icon: <Users size={16} />,
+    },
+    {
+      label: 'Total Calls',
+      value: formatNumber(totals?.total_calls_booked),
       icon: <Users size={16} />,
     },
     {
@@ -273,26 +275,21 @@ function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
       value: formatNumber(totals?.total_students_enrolled),
       icon: <Users size={16} />,
     },
+    // Row 3
     {
-      label: 'Cash Collected',
-      value: formatCurrency(totals?.total_cash_collected),
-      accent: true,
-      icon: <Zap size={16} />,
+      label: 'Global CPL',
+      value: formatCurrency(totals?.global_cpl),
+      icon: <BarChart3 size={16} />,
     },
     {
-      label: 'Cost Per Call',
+      label: 'Global CPBC',
       value: formatCurrency(totals?.global_cost_per_call),
       icon: <BarChart3 size={16} />,
     },
     {
-      label: 'Cost Per Sale',
+      label: 'Global Cost Per Sale',
       value: formatCurrency(totals?.global_cost_per_sale),
       icon: <BarChart3 size={16} />,
-    },
-    {
-      label: 'Show Rate',
-      value: formatPercent(totals?.global_show_rate),
-      icon: <Users size={16} />,
     },
   ]
 
