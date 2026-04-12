@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, DollarSign, Plus, Search, Users } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { ArrowDown, ArrowUp, DollarSign, Plus, Search, Users, X } from 'lucide-react'
 import { AddClientModal } from '@/components/AddClientModal'
 import { StatusBadge } from '@/components/clients/status-badge'
 import { ProgramBadge } from '@/components/clients/program-badge'
@@ -66,12 +67,24 @@ function getSortValue(c: ClientWithCsmAndStats, key: SortKey, hasSubs?: boolean)
 }
 
 export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps) {
+  const searchParams = useSearchParams()
+  const filterParam = searchParams.get('filter')
+
+  const initialStatus: StatusFilter = (() => {
+    if (filterParam === 'onboarding') return 'onboarding'
+    if (filterParam === 'launched') return 'launched'
+    if (filterParam === 'active') return 'active'
+    if (filterParam === 'ending_soon') return 'all'
+    return 'active'
+  })()
+
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus)
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [sortBy, setSortBy] = useState<SortKey>('joined')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [showEndingSoon, setShowEndingSoon] = useState(filterParam === 'ending_soon')
 
   function handleSort(key: SortKey) {
     if (sortBy === key) {
@@ -84,10 +97,19 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const todayIso = new Date().toISOString().slice(0, 10)
+    const in7 = new Date()
+    in7.setDate(in7.getDate() + 7)
+    const in7Iso = in7.toISOString().slice(0, 10)
+
     const base = clients.filter((c) => {
       if (statusFilter === 'active' && c.status !== 'onboarding' && c.status !== 'launched') return false
       else if (statusFilter !== 'all' && statusFilter !== 'active' && c.status !== statusFilter) return false
       if (programFilter !== 'all' && c.program !== programFilter) return false
+      if (showEndingSoon) {
+        const end = c.program_end_date
+        if (!end || end < todayIso || end > in7Iso) return false
+      }
       if (!q) return true
       return (
         c.company_name.toLowerCase().includes(q) ||
@@ -106,7 +128,7 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
       return sortDir === 'desc' ? -cmp : cmp
     })
     return sorted
-  }, [clients, search, statusFilter, programFilter, sortBy, sortDir, clientsWithSubs])
+  }, [clients, search, statusFilter, programFilter, sortBy, sortDir, clientsWithSubs, showEndingSoon])
 
   return (
     <div className="w-full">
@@ -181,6 +203,22 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
           </button>
         ))}
       </div>
+
+      {/* Ending soon filter pill */}
+      {showEndingSoon && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="inline-flex items-center gap-1.5 px-3 h-8 rounded-full border border-kst-gold/40 bg-kst-gold/10 text-kst-gold text-xs font-medium">
+            Ending within 7 days
+            <button
+              type="button"
+              onClick={() => setShowEndingSoon(false)}
+              className="ml-0.5 hover:text-kst-white transition-colors"
+            >
+              <X size={12} />
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Empty state */}
       {clients.length === 0 ? (

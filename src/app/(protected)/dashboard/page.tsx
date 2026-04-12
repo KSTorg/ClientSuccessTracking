@@ -260,33 +260,43 @@ export default async function DashboardPage() {
 
       {/* 4 stat cards in one row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
-        <StatCard
-          icon={<Users size={20} />}
-          label="Active Clients"
-          value={totalClients}
-        />
-        <StatCard
-          icon={<UserPlus size={20} />}
-          label="Onboarding"
-          value={onboardingCount}
-        />
-        <StatCard
-          icon={<Rocket size={20} />}
-          label="Launched Total"
-          value={launchedCount}
-        />
-        <StatCard
-          icon={<AlertCircle size={20} />}
-          label="Overdue Tasks"
-          value={overdueCount}
-          tone={overdueCount > 0 ? 'danger' : 'default'}
-        />
-        <StatCard
-          icon={<Clock size={20} />}
-          label="Ending Soon"
-          value={endingSoonCount}
-          tone={endingSoonCount > 0 ? 'gold' : 'default'}
-        />
+        <Link href="/clients?filter=active" className="cursor-pointer">
+          <StatCard
+            icon={<Users size={20} />}
+            label="Active Clients"
+            value={totalClients}
+          />
+        </Link>
+        <Link href="/clients?filter=onboarding" className="cursor-pointer">
+          <StatCard
+            icon={<UserPlus size={20} />}
+            label="Onboarding"
+            value={onboardingCount}
+          />
+        </Link>
+        <Link href="/clients?filter=launched" className="cursor-pointer">
+          <StatCard
+            icon={<Rocket size={20} />}
+            label="Launched Total"
+            value={launchedCount}
+          />
+        </Link>
+        <Link href="/my-tasks" className="cursor-pointer">
+          <StatCard
+            icon={<AlertCircle size={20} />}
+            label="Overdue Tasks"
+            value={overdueCount}
+            tone={overdueCount > 0 ? 'danger' : 'default'}
+          />
+        </Link>
+        <Link href="/clients?filter=ending_soon" className="cursor-pointer">
+          <StatCard
+            icon={<Clock size={20} />}
+            label="Ending Soon"
+            value={endingSoonCount}
+            tone={endingSoonCount > 0 ? 'gold' : 'default'}
+          />
+        </Link>
       </div>
 
       {/* Recent Clients + Reports Due side by side */}
