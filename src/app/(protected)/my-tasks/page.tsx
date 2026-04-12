@@ -31,6 +31,13 @@ export default async function MyTasksPage() {
     .neq('status', 'completed')
     .not('due_date', 'is', null)
 
+  // Fetch action items (incomplete, with due dates)
+  const { data: actionItemsData } = await supabase
+    .from('action_items')
+    .select('id, title, assigned_to, due_date, status, client_id, client:clients ( company_name, program, is_imported )')
+    .neq('status', 'completed')
+    .not('due_date', 'is', null)
+
   // Fetch all team profiles for admin "All Team" view
   const { data: teamProfiles } = await supabase
     .from('profiles')
@@ -144,6 +151,39 @@ export default async function MyTasksPage() {
 
     if (clientTasks[0]) allActionable.push(toActionable(clientTasks[0]))
     if (clientTasks[1]) allUpcoming.push(toActionable(clientTasks[1]))
+  }
+
+  // Add action items as actionable tasks
+  for (const r of (actionItemsData ?? []) as unknown[]) {
+    const obj = r as Record<string, unknown>
+    const client = Array.isArray(obj.client) ? obj.client[0] : obj.client
+    const clientObj = (client ?? {}) as Record<string, unknown>
+    const dueDate = (obj.due_date as string | null) ?? null
+    const isImported = (clientObj.is_imported as boolean) ?? false
+    const isOverdue = !isImported && dueDate != null && dueDate < today
+    let overdueDays = 0
+    if (isOverdue && dueDate) {
+      const due = new Date(dueDate + 'T00:00:00')
+      const now = new Date(today + 'T00:00:00')
+      overdueDays = Math.round((now.getTime() - due.getTime()) / 86400000)
+    }
+    allActionable.push({
+      id: obj.id as string,
+      clientId: obj.client_id as string,
+      companyName: (clientObj.company_name as string) ?? 'Unknown',
+      program: (clientObj.program as string | null) ?? null,
+      taskTitle: (obj.title as string) ?? 'Action item',
+      stageName: 'Action Item',
+      stageOrder: 999,
+      dueDate,
+      isOverdue,
+      overdueDays,
+      assignedTo: (obj.assigned_to as string | null) ?? null,
+      ownerId: (obj.assigned_to as string | null) ?? null,
+      isClientTask: false,
+      isImported,
+      isActionItem: true,
+    })
   }
 
   // Build team member map for admin "All Team" view

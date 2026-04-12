@@ -5,8 +5,10 @@ import { sendDiscordEmbed, COLORS } from '@/lib/discord'
 import { clientLabel, formatProgramLabel, formatTodayLong } from '@/lib/overdue'
 
 interface Body {
-  type?: 'new_client' | 'launched'
+  type?: 'new_client' | 'launched' | 'action_item_created'
   clientId?: string
+  actionItemTitle?: string
+  assignedTo?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -160,6 +162,44 @@ export async function POST(request: NextRequest) {
           },
         ],
         pings
+      )
+      return NextResponse.json({ success: true })
+    }
+
+    if (type === 'action_item_created') {
+      const itemTitle = body.actionItemTitle ?? 'Action item'
+      const assigneeId = body.assignedTo ?? null
+
+      let assigneeMention = ''
+      const pings: string[] = []
+      if (assigneeId) {
+        const { data: assigneeRow } = await supabaseAdmin
+          .from('profiles')
+          .select('full_name, discord_id')
+          .eq('id', assigneeId)
+          .maybeSingle()
+        const a = assigneeRow as { full_name: string | null; discord_id: string | null } | null
+        if (a?.discord_id) {
+          assigneeMention = `<@${a.discord_id}>`
+          pings.push(`<@${a.discord_id}>`)
+        } else if (a?.full_name) {
+          assigneeMention = a.full_name
+        }
+      }
+
+      await sendDiscordEmbed(
+        [
+          {
+            title: '📋 New Action Item',
+            description: `**${clientLabel(c.company_name, c.contact_name)}**\n"${itemTitle}"`,
+            color: COLORS.gold,
+            fields: assigneeMention
+              ? [{ name: 'Assigned to', value: assigneeMention, inline: true }]
+              : undefined,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        pings.length > 0 ? pings.join(' ') : undefined
       )
       return NextResponse.json({ success: true })
     }

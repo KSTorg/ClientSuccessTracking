@@ -22,6 +22,7 @@ export interface ActionableTask {
   ownerId: string | null
   isClientTask: boolean
   isImported: boolean
+  isActionItem?: boolean
 }
 
 export interface TeamMemberGroup {
@@ -73,9 +74,12 @@ function sortTasks(tasks: ActionableTask[]): {
 }
 
 function TaskRow({ task }: { task: ActionableTask }) {
+  const href = task.isActionItem
+    ? `/clients/${task.clientId}?tab=success`
+    : `/clients/${task.clientId}`
   return (
     <Link
-      href={`/clients/${task.clientId}`}
+      href={href}
       className="glass-panel-sm glass-panel-interactive flex items-center gap-3 px-4 py-3"
     >
       <span
@@ -92,6 +96,11 @@ function TaskRow({ task }: { task: ActionableTask }) {
           {task.isClientTask && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-kst-muted">
               Client task
+            </span>
+          )}
+          {task.isActionItem && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-kst-gold/10 text-kst-gold">
+              Action item
             </span>
           )}
           {task.isImported && (
@@ -124,9 +133,12 @@ function TaskRow({ task }: { task: ActionableTask }) {
 }
 
 function UpcomingTaskRow({ task }: { task: ActionableTask }) {
+  const href = task.isActionItem
+    ? `/clients/${task.clientId}?tab=success`
+    : `/clients/${task.clientId}`
   return (
     <Link
-      href={`/clients/${task.clientId}`}
+      href={href}
       className="glass-panel-sm glass-panel-interactive flex items-center gap-3 px-4 py-3 opacity-60"
     >
       <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#60A5FA]/50" />

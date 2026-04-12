@@ -13,10 +13,12 @@ import {
   ArrowRight,
   BarChart3,
   Check,
+  CheckSquare,
   ChevronDown,
   Target,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { ActionItems } from '@/components/ActionItems'
 import { cn } from '@/lib/utils'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -372,6 +374,7 @@ function WeekCard({
     initialReport?.current_priorities ?? ''
   )
 
+  const [reportId, setReportId] = useState<string | null>(initialReport?.id ?? null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const dirtyRef = useRef(false)
@@ -435,7 +438,7 @@ function WeekCard({
       if (v !== undefined) metricsPayload[m.key] = v
     }
 
-    const { error } = await supabase.from('weekly_reports').upsert(
+    const { data: upserted, error } = await supabase.from('weekly_reports').upsert(
       {
         client_id: clientId,
         week_number: weekNum,
@@ -448,7 +451,7 @@ function WeekCard({
         created_by: currentUserId,
       },
       { onConflict: 'client_id,week_number' }
-    )
+    ).select('id').single()
 
     if (error) {
       setSaveError(error.message)
@@ -458,6 +461,7 @@ function WeekCard({
 
     dirtyRef.current = false
     setReportExists(true)
+    if (upserted?.id) setReportId(upserted.id)
     setSaveStatus('saved')
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
     fadeTimerRef.current = setTimeout(() => {
@@ -628,6 +632,15 @@ function WeekCard({
               value={priorities}
               onChange={handlePriorities}
               placeholder="What should we focus on?"
+            />
+          </Section>
+
+          <Section title="Action Items" icon={<CheckSquare size={16} />}>
+            <ActionItems
+              clientId={clientId}
+              weekNum={weekNum}
+              reportId={reportId}
+              currentUserId={currentUserId}
             />
           </Section>
 
