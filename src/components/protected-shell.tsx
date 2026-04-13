@@ -7,6 +7,7 @@ import {
   Briefcase,
   Bug,
   CheckSquare,
+  ClipboardList,
   LayoutDashboard,
   Menu,
   Users,
@@ -46,6 +47,7 @@ function getNavItems(role: Role): NavItem[] {
     { href: '/my-tasks', label: 'My Tasks', icon: CheckSquare },
     { href: '/clients', label: 'Clients', icon: Briefcase },
     { href: '/team', label: 'Team', icon: Users },
+    { href: '/templates', label: 'Templates', icon: ClipboardList },
   ]
   if (role === 'admin') {
     items.push({ href: '/reports', label: 'Reports', icon: Bug })
