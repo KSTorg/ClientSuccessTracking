@@ -117,17 +117,36 @@ export async function POST(request: NextRequest) {
       .in('program_end_date', [in3Str, in7Str])
 
     if (endingSoon && endingSoon.length > 0) {
-      const endMentions = new Set<string>()
-      const endLines: string[] = []
-
-      for (const c of endingSoon as Array<{
+      const endClients = endingSoon as Array<{
         company_name: string
         contact_name: string | null
         program: string | null
         program_end_date: string
         client_team: Record<string, string | null> | null
         assigned_csm: string | null
-      }>) {
+      }>
+
+      // Batch-resolve CSM profiles
+      const endCsmIds = new Set<string>()
+      for (const c of endClients) {
+        const cid = c.client_team?.csm ?? c.assigned_csm ?? null
+        if (cid) endCsmIds.add(cid)
+      }
+      const endProfileMap = new Map<string, { discord_id: string | null; full_name: string | null }>()
+      if (endCsmIds.size > 0) {
+        const { data: profiles } = await supabaseAdmin
+          .from('profiles')
+          .select('id, discord_id, full_name')
+          .in('id', [...endCsmIds])
+        for (const p of (profiles ?? []) as { id: string; discord_id: string | null; full_name: string | null }[]) {
+          endProfileMap.set(p.id, { discord_id: p.discord_id, full_name: p.full_name })
+        }
+      }
+
+      const endMentions = new Set<string>()
+      const endLines: string[] = []
+
+      for (const c of endClients) {
         const daysLeft = Math.round(
           (new Date(c.program_end_date + 'T00:00:00').getTime() -
             new Date(todayStr + 'T00:00:00').getTime()) /
@@ -136,17 +155,12 @@ export async function POST(request: NextRequest) {
         const csmId = c.client_team?.csm ?? c.assigned_csm ?? null
         let csmStr = ''
         if (csmId) {
-          const { data: csm } = await supabaseAdmin
-            .from('profiles')
-            .select('discord_id, full_name')
-            .eq('id', csmId)
-            .maybeSingle()
-          const csmObj = csm as { discord_id: string | null; full_name: string | null } | null
-          if (csmObj?.discord_id) {
-            csmStr = ` — <@${csmObj.discord_id}>`
-            endMentions.add(`<@${csmObj.discord_id}>`)
-          } else if (csmObj?.full_name) {
-            csmStr = ` — ${csmObj.full_name}`
+          const csm = endProfileMap.get(csmId) ?? null
+          if (csm?.discord_id) {
+            csmStr = ` — <@${csm.discord_id}>`
+            endMentions.add(`<@${csm.discord_id}>`)
+          } else if (csm?.full_name) {
+            csmStr = ` — ${csm.full_name}`
           }
         }
         endLines.push(
@@ -173,45 +187,70 @@ export async function POST(request: NextRequest) {
       .eq('risk_level', 'at_risk')
 
     if (churnRisk && churnRisk.length > 0) {
-      const riskMentions = new Set<string>()
-      const riskLines: string[] = []
-
-      for (const c of churnRisk as Array<{
+      const riskClients = churnRisk as Array<{
         company_name: string
         program_end_date: string | null
         client_id: string
-      }>) {
-        // Look up CSM for mention
-        const { data: clientRow } = await supabaseAdmin
+      }>
+      const riskClientIds = riskClients.map((c) => c.client_id)
+
+      // Batch fetch: clients, profiles, contacts
+      const [clientsRes, contactsRes] = await Promise.all([
+        supabaseAdmin
           .from('clients')
-          .select('client_team, assigned_csm')
-          .eq('id', c.client_id)
-          .maybeSingle()
-        const cl = clientRow as { client_team: Record<string, string | null> | null; assigned_csm: string | null } | null
+          .select('id, client_team, assigned_csm')
+          .in('id', riskClientIds),
+        supabaseAdmin
+          .from('client_contacts')
+          .select('client_id, full_name')
+          .in('client_id', riskClientIds)
+          .eq('is_primary', true),
+      ])
+
+      const clientMap = new Map<string, { client_team: Record<string, string | null> | null; assigned_csm: string | null }>()
+      for (const r of (clientsRes.data ?? []) as { id: string; client_team: Record<string, string | null> | null; assigned_csm: string | null }[]) {
+        clientMap.set(r.id, { client_team: r.client_team, assigned_csm: r.assigned_csm })
+      }
+
+      const contactMap = new Map<string, string>()
+      for (const r of (contactsRes.data ?? []) as { client_id: string; full_name: string | null }[]) {
+        if (r.full_name) contactMap.set(r.client_id, r.full_name)
+      }
+
+      // Collect CSM IDs and batch fetch profiles
+      const riskCsmIds = new Set<string>()
+      for (const [, cl] of clientMap) {
+        const cid = cl.client_team?.csm ?? cl.assigned_csm ?? null
+        if (cid) riskCsmIds.add(cid)
+      }
+      const riskProfileMap = new Map<string, { discord_id: string | null; full_name: string | null }>()
+      if (riskCsmIds.size > 0) {
+        const { data: profiles } = await supabaseAdmin
+          .from('profiles')
+          .select('id, discord_id, full_name')
+          .in('id', [...riskCsmIds])
+        for (const p of (profiles ?? []) as { id: string; discord_id: string | null; full_name: string | null }[]) {
+          riskProfileMap.set(p.id, { discord_id: p.discord_id, full_name: p.full_name })
+        }
+      }
+
+      const riskMentions = new Set<string>()
+      const riskLines: string[] = []
+
+      for (const c of riskClients) {
+        const cl = clientMap.get(c.client_id)
         const csmId = cl?.client_team?.csm ?? cl?.assigned_csm ?? null
         let csmStr = ''
         if (csmId) {
-          const { data: csm } = await supabaseAdmin
-            .from('profiles')
-            .select('discord_id, full_name')
-            .eq('id', csmId)
-            .maybeSingle()
-          const csmObj = csm as { discord_id: string | null; full_name: string | null } | null
-          if (csmObj?.discord_id) {
-            csmStr = ` — <@${csmObj.discord_id}>`
-            riskMentions.add(`<@${csmObj.discord_id}>`)
-          } else if (csmObj?.full_name) {
-            csmStr = ` — ${csmObj.full_name}`
+          const csm = riskProfileMap.get(csmId) ?? null
+          if (csm?.discord_id) {
+            csmStr = ` — <@${csm.discord_id}>`
+            riskMentions.add(`<@${csm.discord_id}>`)
+          } else if (csm?.full_name) {
+            csmStr = ` — ${csm.full_name}`
           }
         }
-        // Look up contact name
-        const { data: contactRow } = await supabaseAdmin
-          .from('client_contacts')
-          .select('full_name')
-          .eq('client_id', c.client_id)
-          .eq('is_primary', true)
-          .maybeSingle()
-        const contactName = (contactRow as { full_name: string | null } | null)?.full_name ?? null
+        const contactName = contactMap.get(c.client_id) ?? null
 
         riskLines.push(
           `• **${clientLabel(c.company_name, contactName)}** — Program ended ${formatShortDate(c.program_end_date)}, no subscriptions${csmStr}`
