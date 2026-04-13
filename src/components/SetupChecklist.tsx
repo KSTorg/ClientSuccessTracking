@@ -13,11 +13,13 @@ import {
   ChevronDown,
   Clock,
   FileText,
+  MessageSquare,
   PlayCircle,
   ExternalLink,
   Rocket,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { TaskCommentsModal } from '@/components/TaskCommentsModal'
 import { cn } from '@/lib/utils'
 import {
   SPECIALTY_LABELS,
@@ -353,6 +355,49 @@ export function SetupChecklist({
                 : r
             )
           )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, clientId])
+
+  // Comment counts
+  const [commentCounts, setCommentCounts] = useState<Map<string, number>>(new Map())
+  const [commentsModal, setCommentsModal] = useState<{ clientTaskId: string; taskTitle: string } | null>(null)
+
+  useEffect(() => {
+    if (rows.length === 0) return
+    const ids = rows.map((r) => r.id)
+    supabase
+      .from('task_comments')
+      .select('client_task_id')
+      .in('client_task_id', ids)
+      .then(({ data }) => {
+        const counts = new Map<string, number>()
+        for (const r of (data ?? []) as { client_task_id: string }[]) {
+          counts.set(r.client_task_id, (counts.get(r.client_task_id) ?? 0) + 1)
+        }
+        setCommentCounts(counts)
+      })
+  }, [supabase, rows.length])
+
+  // Realtime comment count updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`comment-counts-${clientId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'task_comments' },
+        (payload) => {
+          const taskId = (payload.new as { client_task_id: string }).client_task_id
+          setCommentCounts((prev) => {
+            const next = new Map(prev)
+            next.set(taskId, (next.get(taskId) ?? 0) + 1)
+            return next
+          })
         }
       )
       .subscribe()
@@ -798,6 +843,8 @@ export function SetupChecklist({
                           [ct.id]: !(p[ct.id] ?? false),
                         }))
                       }
+                      commentCounts={commentCounts}
+                      onOpenComments={(id, title) => setCommentsModal({ clientTaskId: id, taskTitle: title })}
                     />
                   ))}
                 </div>
@@ -812,6 +859,16 @@ export function SetupChecklist({
           companyName={clientName ?? 'this client'}
           onConfirm={confirmLaunch}
           onCancel={cancelLaunch}
+        />
+      )}
+
+      {commentsModal && (
+        <TaskCommentsModal
+          open={!!commentsModal}
+          onClose={() => setCommentsModal(null)}
+          clientTaskId={commentsModal.clientTaskId}
+          taskTitle={commentsModal.taskTitle}
+          currentUserId={currentUserId}
         />
       )}
     </div>
@@ -904,6 +961,8 @@ interface TopLevelTaskProps {
   onUpdateDueDate: (id: string, next: string | null) => void
   isParentExpanded: boolean
   toggleParent: () => void
+  commentCounts: Map<string, number>
+  onOpenComments: (id: string, title: string) => void
 }
 
 function TopLevelTask({
@@ -919,6 +978,8 @@ function TopLevelTask({
   onUpdateDueDate,
   isParentExpanded,
   toggleParent,
+  commentCounts,
+  onOpenComments,
 }: TopLevelTaskProps) {
   const hasSubs = !!ct.task?.has_subtasks
   const effective = hasSubs ? effectiveParentStatus(ct, subs) : ct.status
@@ -1042,13 +1103,28 @@ function TopLevelTask({
             )}
           </div>
 
-          {/* Col 4 — links (left-aligned) */}
+          {/* Col 4 — links + comments (left-aligned) */}
           <div
-            className="min-w-0"
+            className="min-w-0 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
             {!hasSubs && !hideLinks && (
               <TaskLinks task={ct.task} program={program} />
+            )}
+            {!hasSubs && (
+              <button
+                type="button"
+                onClick={() => onOpenComments(ct.id, ct.task?.title ?? 'Untitled')}
+                className="relative p-1.5 rounded-md text-kst-muted hover:text-kst-white hover:bg-white/[0.06] transition-colors"
+                title="Comments"
+              >
+                <MessageSquare size={14} />
+                {(commentCounts.get(ct.id) ?? 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-kst-gold text-kst-black text-[9px] font-bold min-w-[16px] h-[16px] flex items-center justify-center rounded-full px-0.5">
+                    {commentCounts.get(ct.id)}
+                  </span>
+                )}
+              </button>
             )}
           </div>
 
@@ -1108,6 +1184,8 @@ function TopLevelTask({
                     onSetStatus={onSetStatus}
                     onReassign={onReassign}
                     onUpdateDueDate={onUpdateDueDate}
+                    commentCount={commentCounts.get(s.id) ?? 0}
+                    onOpenComments={() => onOpenComments(s.id, s.task?.title ?? 'Subtask')}
                   />
                 ))}
               </div>
@@ -1129,6 +1207,8 @@ function SubtaskRow({
   onSetStatus,
   onReassign,
   onUpdateDueDate,
+  commentCount,
+  onOpenComments,
 }: {
   ct: ClientTaskJoined
   isTeamView: boolean
@@ -1139,6 +1219,8 @@ function SubtaskRow({
   onSetStatus: (id: string, next: TaskStatus) => void
   onReassign: (id: string, next: string | null) => void
   onUpdateDueDate: (id: string, next: string | null) => void
+  commentCount: number
+  onOpenComments: () => void
 }) {
   const isTeamOwnedForClient =
     !isTeamView && program === 'accelerator' && ct.assigned_to !== null
@@ -1192,9 +1274,22 @@ function SubtaskRow({
           />
         </div>
 
-        {/* Col 4 — links */}
-        <div className="min-w-0">
+        {/* Col 4 — links + comments */}
+        <div className="min-w-0 flex items-center gap-1">
           {!hideLinks && <TaskLinks task={ct.task} program={program} small />}
+          <button
+            type="button"
+            onClick={onOpenComments}
+            className="relative p-1 rounded-md text-kst-muted hover:text-kst-white hover:bg-white/[0.06] transition-colors"
+            title="Comments"
+          >
+            <MessageSquare size={12} />
+            {commentCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-kst-gold text-kst-black text-[8px] font-bold min-w-[14px] h-[14px] flex items-center justify-center rounded-full px-0.5">
+                {commentCount}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Col 5 — assignee */}
