@@ -58,7 +58,7 @@ export function TopLevelTask({
   const grouped = useMemo(() => {
     const m = new Map<string, ClientTaskJoined[]>()
     for (const s of subs) {
-      const g = groupForSubtask(s.task?.title ?? '')
+      const g = s.task?.subtask_group ?? groupForSubtask(s.task?.title ?? '')
       if (!m.has(g)) m.set(g, [])
       m.get(g)!.push(s)
     }

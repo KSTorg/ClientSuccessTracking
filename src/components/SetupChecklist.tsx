@@ -76,7 +76,7 @@ export function SetupChecklist({
               id, parent_task_id, has_subtasks, title, description,
               training_url, doc_url, extra_links, order_index,
               default_specialty, client_facing_accelerator,
-              accelerator_hide_docs,
+              accelerator_hide_docs, subtask_group,
               stage:stages ( id, name, order_index )
             )
             `

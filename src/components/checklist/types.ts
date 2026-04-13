@@ -25,6 +25,7 @@ export interface TaskRow {
   default_specialty: Specialty | null
   client_facing_accelerator: boolean | null
   accelerator_hide_docs: boolean | null
+  subtask_group: string | null
   stage: StageRow | null
 }
 
