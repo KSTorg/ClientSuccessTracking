@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Briefcase,
+  Bug,
   CheckSquare,
   LayoutDashboard,
   Menu,
@@ -12,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { SignOutButton } from '@/components/sign-out-button'
+import { BugReportModal } from '@/components/BugReportModal'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
@@ -39,12 +41,16 @@ function getNavItems(role: Role): NavItem[] {
   if (role === 'client') {
     return [{ href: '/my-progress', label: 'My Progress', icon: CheckSquare }]
   }
-  return [
+  const items: NavItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/my-tasks', label: 'My Tasks', icon: CheckSquare },
     { href: '/clients', label: 'Clients', icon: Briefcase },
     { href: '/team', label: 'Team', icon: Users },
   ]
+  if (role === 'admin') {
+    items.push({ href: '/reports', label: 'Reports', icon: Bug })
+  }
+  return items
 }
 
 function initialsOf(name: string) {
@@ -65,6 +71,7 @@ export function ProtectedShell({
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [bugModalOpen, setBugModalOpen] = useState(false)
   const mainRef = useRef<HTMLDivElement>(null)
   const supabase = useMemo(() => createClient(), [])
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -173,7 +180,7 @@ export function ProtectedShell({
           overflowY: 'auto',
         }}
       >
-        <SidebarContent navItems={navItems} pathname={pathname} taskBadge={taskBadge} />
+        <SidebarContent navItems={navItems} pathname={pathname} taskBadge={taskBadge} onReportBug={() => setBugModalOpen(true)} />
       </aside>
 
       {/* Sidebar (mobile overlay) */}
@@ -206,6 +213,7 @@ export function ProtectedShell({
               pathname={pathname}
               taskBadge={taskBadge}
               onNavigate={() => setMobileOpen(false)}
+              onReportBug={() => { setBugModalOpen(true); setMobileOpen(false) }}
             />
           </aside>
         </div>
@@ -228,6 +236,12 @@ export function ProtectedShell({
           {children}
         </div>
       </main>
+
+      <BugReportModal
+        open={bugModalOpen}
+        onClose={() => setBugModalOpen(false)}
+        userName={fullName || email}
+      />
     </div>
   )
 }
@@ -237,11 +251,13 @@ function SidebarContent({
   pathname,
   taskBadge,
   onNavigate,
+  onReportBug,
 }: {
   navItems: NavItem[]
   pathname: string
   taskBadge?: TaskBadge
   onNavigate?: () => void
+  onReportBug?: () => void
 }) {
   return (
     <div className="flex flex-col flex-1 py-6">
@@ -290,7 +306,15 @@ function SidebarContent({
         })}
       </nav>
 
-      <div className="mt-auto px-3">
+      <div className="mt-auto px-3 space-y-1">
+        <button
+          type="button"
+          onClick={onReportBug}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm border-l-2 border-transparent text-kst-muted hover:text-kst-white hover:bg-white/5 transition-colors w-full text-left"
+        >
+          <Bug size={16} />
+          <span>Report Bug</span>
+        </button>
         <SignOutButton variant="link" />
       </div>
     </div>
