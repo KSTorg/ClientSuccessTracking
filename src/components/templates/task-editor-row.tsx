@@ -157,6 +157,53 @@ export function TaskEditorRow({
   const hasTraining = !!task.training_url?.trim()
   const hasDoc = !!task.doc_url?.trim()
   const hasExtras = task.extra_links && Object.keys(task.extra_links).length > 0
+  const hasAnyLink = hasTraining || hasDoc || hasExtras
+
+  // Links editing
+  const [linksOpen, setLinksOpen] = useState(false)
+  const [linksFlipUp, setLinksFlipUp] = useState(false)
+  const linksRef = useRef<HTMLDivElement>(null)
+  const [trainingDraft, setTrainingDraft] = useState(task.training_url ?? '')
+  const [docDraft, setDocDraft] = useState(task.doc_url ?? '')
+  const [extrasDraft, setExtrasDraft] = useState<[string, string][]>(
+    task.extra_links ? Object.entries(task.extra_links) : []
+  )
+
+  function openLinks() {
+    setTrainingDraft(task.training_url ?? '')
+    setDocDraft(task.doc_url ?? '')
+    setExtrasDraft(task.extra_links ? Object.entries(task.extra_links) : [])
+    setLinksOpen(true)
+  }
+
+  useEffect(() => {
+    if (!linksOpen) return
+    function onDoc(e: MouseEvent) {
+      if (linksRef.current && !linksRef.current.contains(e.target as Node)) setLinksOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [linksOpen])
+
+  useEffect(() => {
+    if (!linksOpen || !linksRef.current) return
+    const rect = linksRef.current.getBoundingClientRect()
+    setLinksFlipUp(window.innerHeight - rect.bottom < 300)
+  }, [linksOpen])
+
+  async function saveLinks() {
+    const extras: Record<string, string> = {}
+    for (const [k, v] of extrasDraft) {
+      if (k.trim() && v.trim()) extras[k.trim()] = v.trim()
+    }
+    await supabase.from('tasks').update({
+      training_url: trainingDraft.trim() || null,
+      doc_url: docDraft.trim() || null,
+      extra_links: Object.keys(extras).length > 0 ? extras : null,
+    }).eq('id', task.id)
+    setLinksOpen(false)
+    onUpdated()
+  }
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -265,11 +312,112 @@ export function TaskEditorRow({
           </button>
         )}
 
-        {/* Link indicators */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          {hasTraining && <PlayCircle size={10} className="text-kst-gold/60" />}
-          {hasDoc && <FileText size={10} className="text-kst-gold/60" />}
-          {hasExtras && <span className="text-[8px] text-kst-gold/60">+{Object.keys(task.extra_links!).length}</span>}
+        {/* Links */}
+        <div ref={linksRef} className="relative shrink-0">
+          {hasAnyLink ? (
+            <button
+              type="button"
+              onClick={openLinks}
+              className="flex items-center gap-0.5 hover:opacity-80 transition-opacity"
+            >
+              {hasTraining && <PlayCircle size={10} className="text-kst-gold/60" />}
+              {hasDoc && <FileText size={10} className="text-kst-gold/60" />}
+              {hasExtras && <span className="text-[8px] text-kst-gold/60">+{Object.keys(task.extra_links!).length}</span>}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openLinks}
+              className="text-[10px] text-kst-muted/40 hover:text-kst-muted border border-dashed border-white/10 rounded px-1.5 py-0.5 transition-colors"
+            >
+              + Links
+            </button>
+          )}
+          {linksOpen && (
+            <div
+              className={cn(
+                'absolute z-50 right-0 w-[300px] kst-dropdown p-3 kst-fade-in',
+                linksFlipUp ? 'bottom-full mb-2' : 'top-full mt-2'
+              )}
+            >
+              <p className="text-[10px] uppercase tracking-wider text-kst-muted mb-2">Links</p>
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={trainingDraft}
+                  onChange={(e) => setTrainingDraft(e.target.value)}
+                  placeholder="Training URL"
+                  className="w-full h-8 px-2 rounded bg-kst-dark border border-white/10 text-kst-white text-xs focus:outline-none focus:border-kst-gold/60"
+                />
+                <input
+                  type="url"
+                  value={docDraft}
+                  onChange={(e) => setDocDraft(e.target.value)}
+                  placeholder="Doc URL"
+                  className="w-full h-8 px-2 rounded bg-kst-dark border border-white/10 text-kst-white text-xs focus:outline-none focus:border-kst-gold/60"
+                />
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-kst-muted/60 mb-1">Extra Links</p>
+                  {extrasDraft.map(([k, v], i) => (
+                    <div key={i} className="flex gap-1 mb-1">
+                      <input
+                        type="text"
+                        value={k}
+                        onChange={(e) => {
+                          const next = [...extrasDraft]
+                          next[i] = [e.target.value, v]
+                          setExtrasDraft(next)
+                        }}
+                        placeholder="Label"
+                        className="flex-1 h-7 px-2 rounded bg-kst-dark border border-white/10 text-kst-white text-[10px] focus:outline-none focus:border-kst-gold/60"
+                      />
+                      <input
+                        type="url"
+                        value={v}
+                        onChange={(e) => {
+                          const next = [...extrasDraft]
+                          next[i] = [k, e.target.value]
+                          setExtrasDraft(next)
+                        }}
+                        placeholder="URL"
+                        className="flex-1 h-7 px-2 rounded bg-kst-dark border border-white/10 text-kst-white text-[10px] focus:outline-none focus:border-kst-gold/60"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setExtrasDraft(extrasDraft.filter((_, j) => j !== i))}
+                        className="text-kst-muted hover:text-kst-error shrink-0"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setExtrasDraft([...extrasDraft, ['', '']])}
+                    className="text-[10px] text-kst-muted hover:text-kst-gold transition-colors"
+                  >
+                    + Add Link
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-between mt-3">
+                <button
+                  type="button"
+                  onClick={() => setLinksOpen(false)}
+                  className="text-xs text-kst-muted hover:text-kst-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveLinks}
+                  className="px-3 h-7 rounded-full bg-kst-gold text-kst-black font-semibold text-[10px] hover:bg-kst-gold-light transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Menu */}

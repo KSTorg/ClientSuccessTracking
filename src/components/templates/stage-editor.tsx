@@ -127,6 +127,15 @@ export function StageEditor({
 
       {open && (
         <div className="border-t border-white/[0.05] px-2 py-2">
+          {/* Column headers — md+ only */}
+          <div className="hidden md:flex items-center gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wider text-kst-muted/50">
+            <div className="w-[14px] shrink-0" /> {/* drag handle */}
+            <div className="flex-1">Task</div>
+            <div className="w-[52px] text-right shrink-0">Due</div>
+            <div className="w-[44px] text-right shrink-0">Spec</div>
+            <div className="w-[60px] text-right shrink-0">Links</div>
+            <div className="w-[14px] shrink-0" /> {/* menu */}
+          </div>
           <DndContext
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
