@@ -209,7 +209,8 @@ export function TaskEditorRow({
     <div ref={setNodeRef} style={style}>
       <div
         className={cn(
-          'group flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors',
+          'group grid items-center gap-x-2 px-2 py-2 rounded-lg hover:bg-white/[0.03] transition-colors',
+          'grid-cols-[14px_minmax(0,1fr)_56px_44px_60px_22px]',
           isSubtask && 'ml-8'
         )}
       >

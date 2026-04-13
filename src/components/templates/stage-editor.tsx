@@ -127,14 +127,14 @@ export function StageEditor({
 
       {open && (
         <div className="border-t border-white/[0.05] px-2 py-2">
-          {/* Column headers — matches TaskEditorRow flex layout exactly */}
-          <div className="hidden md:flex items-center gap-2 px-2 py-1.5 text-[10px] uppercase tracking-wider text-kst-muted/50 border-b border-white/[0.04] mb-1">
-            <div style={{ width: 14 }} className="shrink-0" />
-            <div className="flex-1 min-w-0">Task</div>
-            <div style={{ width: 52 }} className="shrink-0 text-right">Due</div>
-            <div style={{ width: 40 }} className="shrink-0 text-right">Assignee</div>
-            <div style={{ width: 60 }} className="shrink-0 text-right">Links</div>
-            <div style={{ width: 22 }} className="shrink-0" />
+          {/* Column headers — same grid as TaskEditorRow */}
+          <div className="hidden md:grid items-center gap-x-2 px-2 py-1.5 text-[10px] uppercase tracking-wider text-kst-muted/60 border-b border-white/[0.04] mb-1 grid-cols-[14px_minmax(0,1fr)_56px_44px_60px_22px]">
+            <div />
+            <div>Task</div>
+            <div className="text-right">Due Date</div>
+            <div className="text-right">Assignee</div>
+            <div className="text-right">Links</div>
+            <div />
           </div>
           <DndContext
             collisionDetection={closestCenter}
