@@ -46,7 +46,7 @@ interface TaskEditorRowProps {
 }
 
 const SPECIALTIES = [
-  { value: '', label: 'None' },
+  { value: '', label: 'Client' },
   { value: 'ads', label: 'Ads' },
   { value: 'systems', label: 'Systems' },
   { value: 'organic', label: 'Organic' },
