@@ -1,7 +1,11 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
   BarChart3,
+  ChevronDown,
   RefreshCw,
   Rocket,
   Users,
@@ -320,8 +324,158 @@ function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// C) Client performance table
+// C) Client performance — mobile leaderboard + desktop table
 // ───────────────────────────────────────────────────────────────────────────
+
+type LeaderboardMetric = 'roas' | 'revenue' | 'ad_spend' | 'cpl' | 'leads' | 'enrolled' | 'close' | 'cpc' | 'cps'
+
+const LEADERBOARD_METRICS: { key: LeaderboardMetric; label: string; lowerIsBetter?: boolean }[] = [
+  { key: 'roas', label: 'ROAS' },
+  { key: 'revenue', label: 'Revenue' },
+  { key: 'ad_spend', label: 'Ad Spend' },
+  { key: 'cpl', label: 'CPL', lowerIsBetter: true },
+  { key: 'leads', label: 'Leads' },
+  { key: 'enrolled', label: 'Enrolled' },
+  { key: 'close', label: 'Close %' },
+  { key: 'cpc', label: 'CPC', lowerIsBetter: true },
+  { key: 'cps', label: 'CPS', lowerIsBetter: true },
+]
+
+function getMetricValue(r: ClientMetricsRow, key: LeaderboardMetric): number | null {
+  switch (key) {
+    case 'roas': return r.overall_roas != null ? Number(r.overall_roas) : null
+    case 'revenue': return r.total_revenue != null ? Number(r.total_revenue) : null
+    case 'ad_spend': return r.total_ad_spend != null ? Number(r.total_ad_spend) : null
+    case 'cpl': return r.overall_cpl != null ? Number(r.overall_cpl) : null
+    case 'leads': return r.total_leads != null ? Number(r.total_leads) : null
+    case 'enrolled': return r.total_enrolled != null ? Number(r.total_enrolled) : null
+    case 'close': return r.close_rate != null ? Number(r.close_rate) : null
+    case 'cpc': return r.overall_cost_per_call != null ? Number(r.overall_cost_per_call) : null
+    case 'cps': return r.overall_cost_per_sale != null ? Number(r.overall_cost_per_sale) : null
+    default: return null
+  }
+}
+
+function formatMetricValue(val: number | null, key: LeaderboardMetric): string {
+  if (val == null) return '—'
+  switch (key) {
+    case 'roas': return `${val.toFixed(1)}x`
+    case 'revenue':
+    case 'ad_spend':
+    case 'cpl':
+    case 'cpc':
+    case 'cps': return formatCurrency(val)
+    case 'leads':
+    case 'enrolled': return formatNumber(val)
+    case 'close': return formatPercent(val)
+    default: return String(val)
+  }
+}
+
+function MobileLeaderboard({
+  rows,
+  displayName,
+}: {
+  rows: ClientMetricsRow[]
+  displayName: (r: ClientMetricsRow) => string
+}) {
+  const [metric, setMetric] = useState<LeaderboardMetric>('roas')
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  const metricDef = LEADERBOARD_METRICS.find((m) => m.key === metric)!
+  const lowerIsBetter = metricDef.lowerIsBetter ?? false
+
+  // Sort and compute bar widths
+  const sorted = [...rows]
+    .map((r) => ({ row: r, val: getMetricValue(r, metric) }))
+    .sort((a, b) => {
+      if (a.val == null || a.val === 0) return 1
+      if (b.val == null || b.val === 0) return -1
+      return lowerIsBetter ? a.val - b.val : b.val - a.val
+    })
+
+  // For bar widths: best value = 100%
+  const bestVal = sorted[0]?.val
+  const worstForBar = lowerIsBetter
+    ? sorted.reduce((mx, s) => (s.val != null && s.val > 0 ? Math.max(mx, s.val) : mx), 0)
+    : null
+
+  function barPct(val: number | null): number {
+    if (val == null || val === 0 || bestVal == null || bestVal === 0) return 0
+    if (lowerIsBetter) {
+      if (!worstForBar || worstForBar === 0) return 0
+      return Math.max(5, ((worstForBar - val) / (worstForBar - bestVal)) * 100)
+    }
+    return Math.max(5, (val / bestVal) * 100)
+  }
+
+  return (
+    <div className="px-4 pb-4">
+      {/* Metric picker */}
+      <div className="flex items-center justify-between mb-3 relative">
+        <p className="text-kst-muted text-xs">Ranked by</p>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPickerOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-kst-gold/60 text-kst-gold bg-kst-gold/10 px-3 h-8 text-xs font-medium"
+          >
+            {metricDef.label}
+            <ChevronDown size={12} />
+          </button>
+          {pickerOpen && (
+            <div className="absolute right-0 top-full mt-1 z-50 kst-dropdown p-1 min-w-[140px] kst-fade-in">
+              {LEADERBOARD_METRICS.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => { setMetric(m.key); setPickerOpen(false) }}
+                  className={cn(
+                    'w-full text-left px-3 py-2 text-sm rounded-lg transition-colors',
+                    m.key === metric
+                      ? 'text-kst-gold bg-kst-gold/10'
+                      : 'text-kst-muted hover:text-kst-white hover:bg-white/[0.06]'
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Leaderboard rows */}
+      <div>
+        {sorted.map(({ row: r, val }, i) => (
+          <Link
+            key={r.client_id ?? i}
+            href={r.client_id ? `/clients/${r.client_id}` : '#'}
+            className="block py-3 px-1 border-b border-white/[0.04] last:border-b-0"
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-kst-muted text-xs w-5 shrink-0">{i + 1}.</span>
+                <span className="text-kst-white font-medium text-sm truncate">
+                  {displayName(r)}
+                </span>
+              </div>
+              <span className={cn('text-sm font-semibold shrink-0 ml-2', i === 0 && val ? 'text-kst-gold' : 'text-kst-white')}>
+                {formatMetricValue(val, metric)}
+              </span>
+            </div>
+            <div className="ml-7 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-kst-gold transition-all"
+                style={{ width: `${barPct(val)}%` }}
+              />
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow[]; contactNames: Record<string, string> }) {
   function displayName(r: ClientMetricsRow): string {
@@ -333,7 +487,7 @@ function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow
       <div className="flex items-center justify-between px-6 md:px-8 py-5">
         <div>
           <h3 className="text-kst-white font-semibold">Client Performance</h3>
-          <p className="text-kst-muted text-xs mt-0.5">
+          <p className="text-kst-muted text-xs mt-0.5 hidden md:block">
             Sorted by ROAS, descending
           </p>
         </div>
@@ -345,57 +499,9 @@ function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow
         </p>
       ) : (
         <>
-        {/* Mobile cards */}
-        <div className="md:hidden px-4 pb-4 space-y-3">
-          {rows.map((r, i) => {
-            const roas = r.overall_roas
-            const roasCls =
-              roas == null ? 'text-kst-muted' : roas >= 1 ? 'text-kst-gold font-semibold' : 'text-kst-error font-semibold'
-            return (
-              <div key={r.client_id ?? i} className="glass-panel-sm p-4">
-                <div className="mb-3">
-                  {r.client_id ? (
-                    <Link href={`/clients/${r.client_id}`} className="text-kst-white font-medium text-sm hover:text-kst-gold transition-colors">
-                      {displayName(r)}
-                    </Link>
-                  ) : (
-                    <span className="text-kst-white font-medium text-sm">{displayName(r)}</span>
-                  )}
-                  <p className="text-kst-muted text-[10px] mt-0.5">{formatNumber(r.total_weeks_reported)} weeks reported</p>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">Ad Spend</span>
-                    <span className="text-kst-white">{formatCurrencyCompact(r.total_ad_spend)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">Revenue</span>
-                    <span className="text-kst-white">{formatCurrencyCompact(r.total_revenue)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">ROAS</span>
-                    <span className={roasCls}>{formatRoas(roas)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">CPL</span>
-                    <span className="text-kst-white">{formatCurrencyCompact(r.overall_cpl)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">Leads</span>
-                    <span className="text-kst-white">{formatNumber(r.total_leads)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">Enrolled</span>
-                    <span className="text-kst-white">{formatNumber(r.total_enrolled)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-kst-muted">Close %</span>
-                    <span className="text-kst-muted">{formatPercent(r.close_rate)}</span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+        {/* Mobile leaderboard */}
+        <div className="md:hidden">
+          <MobileLeaderboard rows={rows} displayName={displayName} />
         </div>
 
         {/* Desktop table */}
