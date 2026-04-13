@@ -230,6 +230,20 @@ export default async function DashboardPage() {
     .slice()
     .reverse() // chronological order
   const clientMetrics = (clientMetricsRes.data ?? []) as ClientMetricsRow[]
+
+  // Fetch primary contact names for client performance table
+  const metricClientIds = clientMetrics.map((r) => r.client_id).filter(Boolean) as string[]
+  const clientContactNames: Record<string, string> = {}
+  if (metricClientIds.length > 0) {
+    const { data: contacts } = await supabase
+      .from('client_contacts')
+      .select('client_id, full_name')
+      .in('client_id', metricClientIds)
+      .eq('is_primary', true)
+    for (const c of (contacts ?? []) as { client_id: string; full_name: string }[]) {
+      clientContactNames[c.client_id] = c.full_name
+    }
+  }
   const taskBottlenecks = (taskPerfRes.data ?? []) as TaskPerformanceRow[]
   const teamPerformance = (teamPerfRes.data ?? []) as TeamPerformanceRow[]
   // Filter imported clients from time-to-launch analytics
@@ -400,6 +414,7 @@ export default async function DashboardPage() {
         servicePopularity={servicePopularity}
         ltv={ltvRows}
         churnRisk={churnRisk}
+        clientContactNames={clientContactNames}
       />
     </div>
   )

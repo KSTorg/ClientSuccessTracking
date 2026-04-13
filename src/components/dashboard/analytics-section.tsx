@@ -140,6 +140,7 @@ interface AnalyticsSectionProps {
   servicePopularity: ServicePopularityRow[]
   ltv: LtvRow[]
   churnRisk: ChurnRiskRow[]
+  clientContactNames: Record<string, string>
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -158,6 +159,7 @@ export function AnalyticsSection({
   servicePopularity,
   ltv,
   churnRisk,
+  clientContactNames,
 }: AnalyticsSectionProps) {
   const hasAnyData =
     !!globalTotals ||
@@ -192,7 +194,7 @@ export function AnalyticsSection({
 
       {/* C) Client performance table */}
       <div className="mt-6">
-        <ClientPerformanceTable rows={clientMetrics} />
+        <ClientPerformanceTable rows={clientMetrics} contactNames={clientContactNames} />
       </div>
 
       {/* D + E) Two-column grid: bottlenecks + team performance */}
@@ -321,7 +323,11 @@ function GlobalMetricsBar({ totals }: { totals: GlobalTotals | null }) {
 // C) Client performance table
 // ───────────────────────────────────────────────────────────────────────────
 
-function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
+function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow[]; contactNames: Record<string, string> }) {
+  function displayName(r: ClientMetricsRow): string {
+    return (r.client_id ? contactNames[r.client_id] : null) ?? r.company_name ?? '—'
+  }
+
   return (
     <div className="glass-panel overflow-hidden">
       <div className="flex items-center justify-between px-6 md:px-8 py-5">
@@ -338,7 +344,62 @@ function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
           No client weekly reports yet.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Mobile cards */}
+        <div className="md:hidden px-4 pb-4 space-y-3">
+          {rows.map((r, i) => {
+            const roas = r.overall_roas
+            const roasCls =
+              roas == null ? 'text-kst-muted' : roas >= 1 ? 'text-kst-gold font-semibold' : 'text-kst-error font-semibold'
+            return (
+              <div key={r.client_id ?? i} className="glass-panel-sm p-4">
+                <div className="mb-3">
+                  {r.client_id ? (
+                    <Link href={`/clients/${r.client_id}`} className="text-kst-white font-medium text-sm hover:text-kst-gold transition-colors">
+                      {displayName(r)}
+                    </Link>
+                  ) : (
+                    <span className="text-kst-white font-medium text-sm">{displayName(r)}</span>
+                  )}
+                  <p className="text-kst-muted text-[10px] mt-0.5">{formatNumber(r.total_weeks_reported)} weeks reported</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">Ad Spend</span>
+                    <span className="text-kst-white">{formatCurrencyCompact(r.total_ad_spend)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">Revenue</span>
+                    <span className="text-kst-white">{formatCurrencyCompact(r.total_revenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">ROAS</span>
+                    <span className={roasCls}>{formatRoas(roas)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">CPL</span>
+                    <span className="text-kst-white">{formatCurrencyCompact(r.overall_cpl)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">Leads</span>
+                    <span className="text-kst-white">{formatNumber(r.total_leads)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">Enrolled</span>
+                    <span className="text-kst-white">{formatNumber(r.total_enrolled)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-kst-muted">Close %</span>
+                    <span className="text-kst-muted">{formatPercent(r.close_rate)}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table
             className="w-full text-sm"
             style={{ tableLayout: 'fixed' }}
@@ -427,11 +488,11 @@ function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
                             href={`/clients/${r.client_id}`}
                             className="text-kst-white hover:text-kst-gold transition-colors"
                           >
-                            {r.company_name ?? '—'}
+                            {displayName(r)}
                           </Link>
                         ) : (
                           <span className="text-kst-white">
-                            {r.company_name ?? '—'}
+                            {displayName(r)}
                           </span>
                         )}
                       </div>
@@ -502,6 +563,7 @@ function ClientPerformanceTable({ rows }: { rows: ClientMetricsRow[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
