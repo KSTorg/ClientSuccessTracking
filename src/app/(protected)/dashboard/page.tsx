@@ -229,7 +229,12 @@ export default async function DashboardPage() {
   const weeklyTrend = ((weeklyTrendRes.data ?? []) as WeeklyTrendPoint[])
     .slice()
     .reverse() // chronological order
-  const clientMetrics = (clientMetricsRes.data ?? []) as ClientMetricsRow[]
+  const clientMetrics = ((clientMetricsRes.data ?? []) as ClientMetricsRow[]).map((r) => ({
+    ...r,
+    close_rate: r.close_rate ?? (r.total_calls_showed && r.total_calls_showed > 0 && r.total_enrolled != null
+      ? (r.total_enrolled / r.total_calls_showed) * 100
+      : null),
+  }))
 
   // Fetch primary contact names for client performance table
   const metricClientIds = clientMetrics.map((r) => r.client_id).filter(Boolean) as string[]

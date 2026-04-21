@@ -58,6 +58,7 @@ export interface ClientMetricsRow {
   total_leads: number | null
   total_enrolled: number | null
   close_rate: number | null
+  total_calls_showed: number | null
   total_cash_collected: number | null
   overall_cost_per_call: number | null
   overall_cost_per_sale: number | null
