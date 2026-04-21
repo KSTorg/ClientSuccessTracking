@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { SignOutButton } from '@/components/sign-out-button'
-import { BugReportModal } from '@/components/BugReportModal'
+import { BugReportPanel } from '@/components/BugReportModal'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/supabase/get-user'
@@ -182,7 +182,14 @@ export function ProtectedShell({
           overflowY: 'auto',
         }}
       >
-        <SidebarContent navItems={navItems} pathname={pathname} taskBadge={taskBadge} onReportBug={() => setBugModalOpen(true)} />
+        {bugModalOpen ? (
+          <BugReportPanel
+            onClose={() => setBugModalOpen(false)}
+            userName={fullName || email}
+          />
+        ) : (
+          <SidebarContent navItems={navItems} pathname={pathname} taskBadge={taskBadge} onReportBug={() => setBugModalOpen(true)} />
+        )}
       </aside>
 
       {/* Sidebar (mobile overlay) */}
@@ -210,13 +217,20 @@ export function ProtectedShell({
                 <X size={20} />
               </button>
             </div>
-            <SidebarContent
-              navItems={navItems}
-              pathname={pathname}
-              taskBadge={taskBadge}
-              onNavigate={() => setMobileOpen(false)}
-              onReportBug={() => { setBugModalOpen(true); setMobileOpen(false) }}
-            />
+            {bugModalOpen ? (
+              <BugReportPanel
+                onClose={() => { setBugModalOpen(false) }}
+                userName={fullName || email}
+              />
+            ) : (
+              <SidebarContent
+                navItems={navItems}
+                pathname={pathname}
+                taskBadge={taskBadge}
+                onNavigate={() => setMobileOpen(false)}
+                onReportBug={() => setBugModalOpen(true)}
+              />
+            )}
           </aside>
         </div>
       )}
@@ -239,11 +253,6 @@ export function ProtectedShell({
         </div>
       </main>
 
-      <BugReportModal
-        open={bugModalOpen}
-        onClose={() => setBugModalOpen(false)}
-        userName={fullName || email}
-      />
     </div>
   )
 }
