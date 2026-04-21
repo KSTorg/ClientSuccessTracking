@@ -77,7 +77,7 @@ const INPUT_METRICS: InputMetricDef[] = [
   { key: 'calls_booked', label: 'Calls Booked' },
   { key: 'calls_showed_up', label: 'Calls Showed Up' },
   { key: 'students_enrolled', label: 'Students Enrolled' },
-  { key: 'revenue_collected', label: 'Revenue Collected', prefix: '$' },
+  { key: 'revenue_collected', label: 'Revenue Generated', prefix: '$' },
   { key: 'cash_collected', label: 'Cash Collected', prefix: '$' },
 ]
 
