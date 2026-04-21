@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   BarChart3,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
   Rocket,
   Users,
@@ -381,6 +382,7 @@ function MobileLeaderboard({
 }) {
   const [metric, setMetric] = useState<LeaderboardMetric>('roas')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [mobileAsc, setMobileAsc] = useState(false)
 
   const metricDef = LEADERBOARD_METRICS.find((m) => m.key === metric)!
   const lowerIsBetter = metricDef.lowerIsBetter ?? false
@@ -391,7 +393,8 @@ function MobileLeaderboard({
     .sort((a, b) => {
       if (a.val == null || a.val === 0) return 1
       if (b.val == null || b.val === 0) return -1
-      return lowerIsBetter ? a.val - b.val : b.val - a.val
+      const dir = mobileAsc ? -1 : 1
+      return lowerIsBetter ? dir * (a.val - b.val) : dir * (b.val - a.val)
     })
 
   // For bar widths: best value = 100%
@@ -414,7 +417,15 @@ function MobileLeaderboard({
       {/* Metric picker */}
       <div className="flex items-center justify-between mb-3 relative">
         <p className="text-kst-muted text-xs">Ranked by</p>
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMobileAsc((v) => !v)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-white/10 text-kst-muted hover:text-kst-white hover:border-white/20 transition-colors"
+            aria-label={mobileAsc ? 'Sort ascending' : 'Sort descending'}
+          >
+            {mobileAsc ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
           <button
             type="button"
             onClick={() => setPickerOpen((v) => !v)}
@@ -477,10 +488,74 @@ function MobileLeaderboard({
   )
 }
 
+const SORT_COLUMNS: { key: SortColumn; label: string }[] = [
+  { key: 'client', label: 'Client' },
+  { key: 'weeks', label: 'Weeks' },
+  { key: 'ad_spend', label: 'Ad Spend' },
+  { key: 'revenue', label: 'Revenue' },
+  { key: 'roas', label: 'ROAS' },
+  { key: 'cpl', label: 'CPL' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'enrolled', label: 'Enrolled' },
+  { key: 'close', label: 'Close %' },
+  { key: 'cash', label: 'Cash' },
+  { key: 'cpc', label: 'CPC' },
+  { key: 'cps', label: 'CPS' },
+  { key: 'show', label: 'Show %' },
+]
+
+type SortColumn =
+  | 'client' | 'weeks' | 'ad_spend' | 'revenue' | 'roas' | 'cpl'
+  | 'leads' | 'enrolled' | 'close' | 'cash' | 'cpc' | 'cps' | 'show'
+
+function getSortValue(r: ClientMetricsRow, col: SortColumn, displayName: (r: ClientMetricsRow) => string): number | string | null {
+  switch (col) {
+    case 'client': return displayName(r).toLowerCase()
+    case 'weeks': return r.total_weeks_reported != null ? Number(r.total_weeks_reported) : null
+    case 'ad_spend': return r.total_ad_spend != null ? Number(r.total_ad_spend) : null
+    case 'revenue': return r.total_revenue != null ? Number(r.total_revenue) : null
+    case 'roas': return r.overall_roas != null ? Number(r.overall_roas) : null
+    case 'cpl': return r.overall_cpl != null ? Number(r.overall_cpl) : null
+    case 'leads': return r.total_leads != null ? Number(r.total_leads) : null
+    case 'enrolled': return r.total_enrolled != null ? Number(r.total_enrolled) : null
+    case 'close': return r.close_rate != null ? Number(r.close_rate) : null
+    case 'cash': return r.total_cash_collected != null ? Number(r.total_cash_collected) : null
+    case 'cpc': return r.overall_cost_per_call != null ? Number(r.overall_cost_per_call) : null
+    case 'cps': return r.overall_cost_per_sale != null ? Number(r.overall_cost_per_sale) : null
+    case 'show': return r.overall_show_rate != null ? Number(r.overall_show_rate) : null
+    default: return null
+  }
+}
+
 function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow[]; contactNames: Record<string, string> }) {
+  const [sortCol, setSortCol] = useState<SortColumn>('roas')
+  const [sortAsc, setSortAsc] = useState(false)
+
   function displayName(r: ClientMetricsRow): string {
     return (r.client_id ? contactNames[r.client_id] : null) ?? r.company_name ?? '—'
   }
+
+  function handleSort(col: SortColumn) {
+    if (sortCol === col) {
+      setSortAsc((v) => !v)
+    } else {
+      setSortCol(col)
+      setSortAsc(false)
+    }
+  }
+
+  const sortedRows = [...rows].sort((a, b) => {
+    const aVal = getSortValue(a, sortCol, displayName)
+    const bVal = getSortValue(b, sortCol, displayName)
+    if (aVal == null) return 1
+    if (bVal == null) return -1
+    const cmp = typeof aVal === 'string' && typeof bVal === 'string'
+      ? aVal.localeCompare(bVal)
+      : (aVal as number) - (bVal as number)
+    return sortAsc ? cmp : -cmp
+  })
+
+  const colLabel = SORT_COLUMNS.find((c) => c.key === sortCol)?.label ?? sortCol
 
   return (
     <div className="glass-panel overflow-hidden">
@@ -488,7 +563,7 @@ function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow
         <div>
           <h3 className="text-kst-white font-semibold">Client Performance</h3>
           <p className="text-kst-muted text-xs mt-0.5 hidden md:block">
-            Sorted by ROAS, descending
+            Sorted by {colLabel}, {sortAsc ? 'ascending' : 'descending'}
           </p>
         </div>
       </div>
@@ -527,49 +602,29 @@ function ClientPerformanceTable({ rows, contactNames }: { rows: ClientMetricsRow
             </colgroup>
             <thead>
               <tr className="text-left text-kst-muted text-[11px] uppercase tracking-wider border-t border-white/[0.06]">
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Client</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Weeks</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Ad Spend</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Revenue</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">ROAS</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">CPL</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Leads</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Enrolled</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Close %</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Cash</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">CPC</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">CPS</div>
-                </th>
-                <th className="px-3 py-3 font-medium">
-                  <div className="truncate">Show %</div>
-                </th>
+                {SORT_COLUMNS.map((col) => (
+                  <th key={col.key} className="px-3 py-3 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSort(col.key)}
+                      className={cn(
+                        'inline-flex items-center gap-1 hover:text-kst-white transition-colors',
+                        sortCol === col.key && 'text-kst-gold'
+                      )}
+                    >
+                      <span className="truncate">{col.label}</span>
+                      {sortCol === col.key ? (
+                        sortAsc ? <ChevronUp size={12} /> : <ChevronDown size={12} />
+                      ) : (
+                        <span className="w-3" />
+                      )}
+                    </button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => {
+              {sortedRows.map((r, i) => {
                 const roas = r.overall_roas
                 const roasCls =
                   roas == null
