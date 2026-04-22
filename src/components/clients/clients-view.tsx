@@ -339,20 +339,7 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
           {/* ── Desktop table (md and up) ──────────────────────────────── */}
           <div className="hidden md:block glass-panel overflow-hidden">
             <div className="overflow-x-auto">
-              <table
-                className="w-full text-sm"
-                style={{ tableLayout: 'fixed' }}
-              >
-                <colgroup>
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '18%' }} />
-                </colgroup>
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wider border-b border-white/[0.06]">
                     {COLUMNS.map((col) => {
@@ -393,7 +380,7 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                           window.location.href = `/clients/${c.id}`
                         }}
                       >
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4" style={{ maxWidth: 200 }}>
                           <Link
                             href={`/clients/${c.id}`}
                             className="flex items-center gap-1.5 text-kst-white font-medium hover:text-kst-gold transition-colors"
@@ -410,27 +397,23 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                             )}
                           </Link>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4" style={{ maxWidth: 160 }}>
                           <div className="truncate text-kst-white">
                             {c.contact_name}
                           </div>
                         </td>
                         <td className="px-3 py-4">
-                          <div className="truncate">
-                            <StatusBadge status={c.status} />
-                          </div>
+                          <StatusBadge status={c.status} />
                         </td>
                         <td className="px-3 py-4">
-                          <div className="truncate">
-                            <ProgramBadge program={c.program} />
-                          </div>
+                          <ProgramBadge program={c.program} />
                         </td>
-                        <td className="px-3 py-4">
-                          <div className="truncate text-kst-muted">
+                        <td className="px-3 py-4 whitespace-nowrap">
+                          <span className="text-kst-muted">
                             {formatDate(c.joined_date ?? c.created_at)}
-                          </div>
+                          </span>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <EndDateInline
                             programEndDate={c.program_end_date}
                             hasActiveSubs={!!hasSubs}
@@ -449,16 +432,14 @@ export function ClientsView({ clients, csms, clientsWithSubs }: ClientsViewProps
                             </span>
                           </div>
                         </td>
-                        <td className="px-3 py-4">
-                          <div className="truncate">
-                            {c.csm?.full_name ? (
-                              <span className="text-kst-white">
-                                {c.csm.full_name}
-                              </span>
-                            ) : (
-                              <span className="text-kst-muted">Unassigned</span>
-                            )}
-                          </div>
+                        <td className="px-3 py-4 whitespace-nowrap">
+                          {c.csm?.full_name ? (
+                            <span className="text-kst-white">
+                              {c.csm.full_name}
+                            </span>
+                          ) : (
+                            <span className="text-kst-muted">Unassigned</span>
+                          )}
                         </td>
                       </tr>
                     )
