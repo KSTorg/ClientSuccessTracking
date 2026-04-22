@@ -28,24 +28,38 @@ function formatWeekLabel(iso: string | null): string {
   return `${MONTH_SHORT[m - 1]} ${d}`
 }
 
+/** Get the Monday of the current week (ISO week starts Monday) */
+function getCurrentWeekStart(): string {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = day === 0 ? 6 : day - 1 // Monday = 0 offset
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - diff)
+  return monday.toISOString().slice(0, 10)
+}
+
 /**
  * SVG-based weekly trend chart. Two polyline series (revenue + ad spend)
  * scaled to a shared y-axis, with a subtle gold area fill under the
  * revenue line and muted grid lines. Server-rendered, no client JS.
  */
 export function WeeklyTrendChart({ data }: { data: WeeklyTrendPoint[] }) {
-  const points = data.map((d) => ({
-    revenue: Number(d.revenue ?? 0) || 0,
-    adSpend: Number(d.ad_spend ?? 0) || 0,
-    week: d.week_start,
-  }))
+  const currentWeekStart = getCurrentWeekStart()
+
+  const points = data
+    .filter((d) => d.week_start !== currentWeekStart)
+    .map((d) => ({
+      revenue: Number(d.revenue ?? 0) || 0,
+      adSpend: Number(d.ad_spend ?? 0) || 0,
+      week: d.week_start,
+    }))
 
   const width = 800
   const height = 240
   const padTop = 20
   const padBottom = 40
   const padLeft = 12
-  const padRight = 20
+  const padRight = 60
   const chartTop = padTop
   const chartBottom = height - padBottom
   const chartLeft = padLeft
@@ -54,12 +68,29 @@ export function WeeklyTrendChart({ data }: { data: WeeklyTrendPoint[] }) {
   const chartHeight = chartBottom - chartTop
 
   const hasData = points.length > 0
-  const maxValue = hasData
-    ? Math.max(
-        1,
-        ...points.map((p) => Math.max(p.revenue, p.adSpend))
-      )
+  const rawMax = hasData
+    ? Math.max(1, ...points.map((p) => Math.max(p.revenue, p.adSpend)))
     : 1
+
+  // Round up to a nice ceiling divisible by 4
+  const TICK_COUNT = 4
+  const step = (() => {
+    const raw = rawMax / TICK_COUNT
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+    const normalized = raw / mag // e.g. 5.876
+    const niceSteps = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]
+    return mag * (niceSteps.find((n) => n >= normalized) ?? 10)
+  })()
+  const maxValue = step * TICK_COUNT
+
+  // Y-axis ticks: 0, step, 2*step, 3*step, 4*step
+  const yTicks = Array.from({ length: TICK_COUNT + 1 }, (_, i) => {
+    const value = i * step
+    return {
+      value,
+      y: chartBottom - (value / maxValue) * chartHeight,
+    }
+  })
 
   function xFor(i: number): number {
     if (points.length <= 1) return chartLeft + chartWidth / 2
@@ -127,17 +158,29 @@ export function WeeklyTrendChart({ data }: { data: WeeklyTrendPoint[] }) {
               </linearGradient>
             </defs>
 
-            {/* Horizontal grid lines */}
-            {[0.25, 0.5, 0.75, 1].map((frac) => (
-              <line
-                key={frac}
-                x1={chartLeft}
-                y1={chartBottom - frac * chartHeight}
-                x2={chartRight}
-                y2={chartBottom - frac * chartHeight}
-                stroke="rgba(255,255,255,0.05)"
-                strokeWidth="1"
-              />
+            {/* Horizontal grid lines + Y-axis labels */}
+            {yTicks.map(({ value, y }) => (
+              <g key={value}>
+                {value > 0 && (
+                  <line
+                    x1={chartLeft}
+                    y1={y}
+                    x2={chartRight}
+                    y2={y}
+                    stroke="rgba(255,255,255,0.05)"
+                    strokeWidth="1"
+                  />
+                )}
+                <text
+                  x={chartRight + 8}
+                  y={y + 4}
+                  fontSize="10"
+                  fill="rgba(255,255,255,0.35)"
+                  textAnchor="start"
+                >
+                  {formatCurrencyCompact(value)}
+                </text>
+              </g>
             ))}
 
             {/* Revenue area fill */}
@@ -152,6 +195,17 @@ export function WeeklyTrendChart({ data }: { data: WeeklyTrendPoint[] }) {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
+
+            {/* Ad spend dots */}
+            {points.map((p, i) => (
+              <circle
+                key={`ads-${i}`}
+                cx={xFor(i)}
+                cy={yFor(p.adSpend)}
+                r="2.5"
+                fill="rgba(255,255,255,0.4)"
+              />
+            ))}
 
             {/* Revenue line */}
             <path
@@ -196,11 +250,6 @@ export function WeeklyTrendChart({ data }: { data: WeeklyTrendPoint[] }) {
               )
             })}
           </svg>
-
-          {/* Max label at the top-right */}
-          <p className="absolute top-0 right-3 text-[10px] text-kst-muted/60">
-            Max {formatCurrencyCompact(maxValue)}
-          </p>
         </div>
       )}
     </div>

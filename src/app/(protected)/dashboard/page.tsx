@@ -138,7 +138,7 @@ export default async function DashboardPage() {
     supabase.from('analytics_global_totals').select('*').maybeSingle(),
     supabase
       .from('analytics_weekly_trend')
-      .select('*')
+      .select('week_start, revenue:total_revenue, ad_spend:total_ad_spend')
       .order('week_start', { ascending: false })
       .limit(12),
     supabase
