@@ -100,7 +100,7 @@ export function AddTaskModal({
     >
       <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
         <div
-          className="glass-panel relative w-full max-w-[480px] p-7"
+          className="glass-panel-modal relative w-full max-w-[480px] p-7"
           onClick={(e) => e.stopPropagation()}
         >
           <button

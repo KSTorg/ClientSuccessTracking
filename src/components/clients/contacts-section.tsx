@@ -615,7 +615,7 @@ function AddContactModal({
     >
       <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
         <div
-          className="glass-panel relative w-full max-w-[480px] p-7 kst-fade-in"
+          className="glass-panel-modal relative w-full max-w-[480px] p-7 kst-fade-in"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -832,7 +832,7 @@ function LoginInvitePasswordModal({
     >
       <div className="min-h-full flex items-start md:items-center justify-center p-4 py-8 md:py-16">
         <div
-          className="glass-panel relative w-full max-w-[460px] p-7 kst-fade-in"
+          className="glass-panel-modal relative w-full max-w-[460px] p-7 kst-fade-in"
           onClick={(e) => e.stopPropagation()}
         >
           <button

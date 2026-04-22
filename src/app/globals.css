@@ -57,6 +57,25 @@ body {
     inset 0 -1px 0 rgba(255, 255, 255, 0.02);
 }
 
+.glass-panel-modal {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 50%,
+      rgba(255, 255, 255, 0.06) 100%
+    ),
+    rgb(17, 17, 17);
+  backdrop-filter: blur(40px) saturate(1.5) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5) brightness(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+}
+
 .glass-panel-sm {
   background: linear-gradient(
     135deg,
