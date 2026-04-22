@@ -269,6 +269,101 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // ── Midway Form Reminders ──
+    const { data: midwayCandidates } = await supabaseAdmin
+      .from('clients')
+      .select('id, company_name, contact_name, launched_date, program_end_date, client_team, assigned_csm')
+      .eq('midway_form_reminded', false)
+      .not('launched_date', 'is', null)
+      .in('status', ['launched', 'onboarding'])
+
+    if (midwayCandidates && midwayCandidates.length > 0) {
+      const candidates = midwayCandidates as Array<{
+        id: string
+        company_name: string
+        contact_name: string | null
+        launched_date: string
+        program_end_date: string | null
+        client_team: Record<string, string | null> | null
+        assigned_csm: string | null
+      }>
+
+      // Determine which clients need the midway reminder today
+      const clientsToRemind = candidates.filter((c) => {
+        const launchPlus30 = new Date(c.launched_date)
+        launchPlus30.setDate(launchPlus30.getDate() + 30)
+
+        let endMinus10: Date | null = c.program_end_date
+          ? new Date(c.program_end_date)
+          : null
+        if (endMinus10) endMinus10.setDate(endMinus10.getDate() - 10)
+
+        const midwayDate = endMinus10 && endMinus10 < launchPlus30
+          ? endMinus10
+          : launchPlus30
+
+        const midwayIso = midwayDate.toISOString().slice(0, 10)
+        return midwayIso <= todayStr
+      })
+
+      if (clientsToRemind.length > 0) {
+        // Batch-resolve CSM profiles
+        const midCsmIds = new Set<string>()
+        for (const c of clientsToRemind) {
+          const cid = c.client_team?.csm ?? c.assigned_csm ?? null
+          if (cid) midCsmIds.add(cid)
+        }
+        const midProfileMap = new Map<string, { discord_id: string | null; full_name: string | null }>()
+        if (midCsmIds.size > 0) {
+          const { data: profiles } = await supabaseAdmin
+            .from('profiles')
+            .select('id, discord_id, full_name')
+            .in('id', [...midCsmIds])
+          for (const p of (profiles ?? []) as { id: string; discord_id: string | null; full_name: string | null }[]) {
+            midProfileMap.set(p.id, { discord_id: p.discord_id, full_name: p.full_name })
+          }
+        }
+
+        const midMentions = new Set<string>()
+        const midLines: string[] = []
+
+        for (const c of clientsToRemind) {
+          const csmId = c.client_team?.csm ?? c.assigned_csm ?? null
+          let csmStr = ''
+          if (csmId) {
+            const csm = midProfileMap.get(csmId) ?? null
+            if (csm?.discord_id) {
+              csmStr = ` — <@${csm.discord_id}>`
+              midMentions.add(`<@${csm.discord_id}>`)
+            } else if (csm?.full_name) {
+              csmStr = ` — ${csm.full_name}`
+            }
+          }
+          midLines.push(
+            `**${clientLabel(c.company_name, c.contact_name)}** — Launched ${formatShortDate(c.launched_date)}\n→ Send the **Midway Form** to the client.${csmStr}`
+          )
+        }
+
+        const midEmbed: DiscordEmbed = {
+          title: '📋 Midway Form Reminder',
+          description: midLines.join('\n\n'),
+          color: COLORS.gold,
+          timestamp: new Date().toISOString(),
+        }
+        await sendDiscordEmbed(
+          [midEmbed],
+          midMentions.size > 0 ? [...midMentions].join(' ') : undefined
+        )
+
+        // Mark as reminded
+        const remindedIds = clientsToRemind.map((c) => c.id)
+        await supabaseAdmin
+          .from('clients')
+          .update({ midway_form_reminded: true })
+          .in('id', remindedIds)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       clientsWithBlockers: blockers.length,

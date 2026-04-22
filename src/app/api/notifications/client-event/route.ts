@@ -163,6 +163,25 @@ export async function POST(request: NextRequest) {
         ],
         pings
       )
+
+      // After Launch Form Reminder
+      const csmReminder = csmDiscordId
+        ? `\n\n→ ${csmDisplay}`
+        : csmName
+          ? `\n\n→ ${csmName}`
+          : ''
+      await sendDiscordEmbed(
+        [
+          {
+            title: '📋 After Launch Form Reminder',
+            description: `**${c.company_name}** has just launched!\n\n→ Send the **After Launch Form** to ${c.contact_name ?? 'the client'}.${csmReminder}`,
+            color: COLORS.gold,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        pings
+      )
+
       return NextResponse.json({ success: true })
     }
 
