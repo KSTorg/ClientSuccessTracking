@@ -224,6 +224,18 @@ export function ClientDetailView({
     setHistoryLoaded(true)
   }
 
+  // Subscription status for info bar
+  const [hasActiveSubs, setHasActiveSubs] = useState<boolean | null>(null)
+  useEffect(() => {
+    supabase
+      .from('client_subscriptions')
+      .select('id')
+      .eq('client_id', client.id)
+      .eq('status', 'active')
+      .limit(1)
+      .then(({ data }) => setHasActiveSubs((data ?? []).length > 0))
+  }, [client.id, supabase])
+
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -258,6 +270,7 @@ export function ClientDetailView({
         .eq('status', 'active')
         .then(({ error: subErr }) => {
           if (subErr) console.warn('[status] auto-cancel subs failed:', subErr.message)
+          else setHasActiveSubs(false)
         })
     }
 
@@ -410,7 +423,7 @@ export function ClientDetailView({
           </span>
           <ProgramBadge program={client.program} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
           <div>
             <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
               Status
@@ -526,7 +539,11 @@ export function ClientDetailView({
                     ? 'text-kst-muted hover:text-kst-gold'
                     : (() => {
                         const today = new Date().toISOString().slice(0, 10)
-                        if (programEndDate < today) return 'text-red-400 hover:text-red-300'
+                        if (programEndDate < today) {
+                          // If they have active subs, don't show red — they're still active
+                          if (hasActiveSubs) return 'text-kst-muted hover:text-kst-gold'
+                          return 'text-red-400 hover:text-red-300'
+                        }
                         const in7 = new Date()
                         in7.setDate(in7.getDate() + 7)
                         if (programEndDate <= in7.toISOString().slice(0, 10)) return 'text-kst-gold hover:text-kst-gold-light'
@@ -536,11 +553,34 @@ export function ClientDetailView({
               >
                 {!programEndDate
                   ? 'Not set'
-                  : programEndDate < new Date().toISOString().slice(0, 10)
-                    ? `Ended ${formatDate(programEndDate)}`
-                    : formatDate(programEndDate)}
+                  : (() => {
+                      const today = new Date().toISOString().slice(0, 10)
+                      if (programEndDate < today && !hasActiveSubs) return `Ended ${formatDate(programEndDate)}`
+                      return formatDate(programEndDate)
+                    })()}
               </button>
             )}
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-wider text-kst-muted mb-2">
+              Subscription
+            </p>
+            <div className="text-sm h-10 flex items-center">
+              {hasActiveSubs === true ? (
+                <span className="border border-kst-success/60 text-kst-success bg-kst-success/10 px-2.5 py-1 rounded-full text-xs font-medium">
+                  Active
+                </span>
+              ) : hasActiveSubs === false && programEndDate && programEndDate < new Date().toISOString().slice(0, 10) ? (
+                <span className="border border-kst-error/60 text-kst-error bg-kst-error/10 px-2.5 py-1 rounded-full text-xs font-medium">
+                  None
+                </span>
+              ) : (
+                <span className="border border-white/15 text-kst-muted bg-white/[0.04] px-2.5 py-1 rounded-full text-xs font-medium">
+                  —
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
