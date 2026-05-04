@@ -126,18 +126,20 @@ export async function POST(request: NextRequest) {
         assigned_csm: string | null
       }>
 
-      // Batch-resolve CSM profiles
-      const endCsmIds = new Set<string>()
+      // Batch-resolve CSM + Sales profiles
+      const endTeamIds = new Set<string>()
       for (const c of endClients) {
-        const cid = c.client_team?.csm ?? c.assigned_csm ?? null
-        if (cid) endCsmIds.add(cid)
+        const csmId = c.client_team?.csm ?? c.assigned_csm ?? null
+        const salesId = c.client_team?.sales ?? null
+        if (csmId) endTeamIds.add(csmId)
+        if (salesId) endTeamIds.add(salesId)
       }
       const endProfileMap = new Map<string, { discord_id: string | null; full_name: string | null }>()
-      if (endCsmIds.size > 0) {
+      if (endTeamIds.size > 0) {
         const { data: profiles } = await supabaseAdmin
           .from('profiles')
           .select('id, discord_id, full_name')
-          .in('id', [...endCsmIds])
+          .in('id', [...endTeamIds])
         for (const p of (profiles ?? []) as { id: string; discord_id: string | null; full_name: string | null }[]) {
           endProfileMap.set(p.id, { discord_id: p.discord_id, full_name: p.full_name })
         }
@@ -153,18 +155,31 @@ export async function POST(request: NextRequest) {
             86400000
         )
         const csmId = c.client_team?.csm ?? c.assigned_csm ?? null
-        let csmStr = ''
+        const salesId = c.client_team?.sales ?? null
+        const teamParts: string[] = []
+
         if (csmId) {
           const csm = endProfileMap.get(csmId) ?? null
           if (csm?.discord_id) {
-            csmStr = ` — <@${csm.discord_id}>`
+            teamParts.push(`<@${csm.discord_id}>`)
             endMentions.add(`<@${csm.discord_id}>`)
           } else if (csm?.full_name) {
-            csmStr = ` — ${csm.full_name}`
+            teamParts.push(csm.full_name)
           }
         }
+        if (salesId) {
+          const sales = endProfileMap.get(salesId) ?? null
+          if (sales?.discord_id) {
+            teamParts.push(`<@${sales.discord_id}>`)
+            endMentions.add(`<@${sales.discord_id}>`)
+          } else if (sales?.full_name) {
+            teamParts.push(sales.full_name)
+          }
+        }
+
+        const teamStr = teamParts.length > 0 ? ` — ${teamParts.join(' · ')}` : ''
         endLines.push(
-          `• **${clientLabel(c.company_name, c.contact_name)}** — ${formatProgramLabel(c.program)} ends ${formatShortDate(c.program_end_date)} (${daysLeft}d)${csmStr}`
+          `• **${clientLabel(c.company_name, c.contact_name)}** — ${formatProgramLabel(c.program)} ends ${formatShortDate(c.program_end_date)} (${daysLeft}d)${teamStr}`
         )
       }
 
