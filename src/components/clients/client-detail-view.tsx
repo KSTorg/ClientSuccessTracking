@@ -42,6 +42,8 @@ interface ClientDetailViewProps {
   csms: CsmOption[]
   contacts: ClientContact[]
   currentUserRole: Role
+  currentUserId: string
+  currentUserName: string | null
   primaryContactName: string | null
 }
 
@@ -66,6 +68,8 @@ export function ClientDetailView({
   csms,
   contacts,
   currentUserRole,
+  currentUserId,
+  currentUserName,
   primaryContactName,
 }: ClientDetailViewProps) {
   const isAdmin = currentUserRole === 'admin'
@@ -381,7 +385,7 @@ export function ClientDetailView({
   }
 
   return (
-    <div className="max-w-5xl">
+    <div className={cn('max-w-5xl', activeTab === 'success' && isLaunched && 'xl:max-w-[1440px]')}>
       {/* Header */}
       <div className="mb-6">
         <Link
@@ -643,6 +647,8 @@ export function ClientDetailView({
             clientId={client.id}
             clientName={client.company_name}
             launchedDate={launchedDate!}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
           />
         )}
       </div>

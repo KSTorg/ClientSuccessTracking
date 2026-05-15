@@ -56,6 +56,8 @@ export default async function ClientDetailPage({ params }: PageProps) {
       csms={csms}
       contacts={contacts}
       currentUserRole={profile!.role}
+      currentUserId={profile!.id}
+      currentUserName={profile!.full_name}
       primaryContactName={primaryContactName}
     />
   )

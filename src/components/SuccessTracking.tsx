@@ -15,10 +15,17 @@ import {
   Check,
   CheckSquare,
   ChevronDown,
+  FileText,
+  MessageSquare,
   Target,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ActionItems } from '@/components/ActionItems'
+import {
+  WeekNotesSidebar,
+  WeekNotesSidebarEmpty,
+  WeekNotesPopup,
+} from '@/components/ClientNotesSidebar'
 import { cn } from '@/lib/utils'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -29,6 +36,8 @@ interface SuccessTrackingProps {
   clientId: string
   clientName?: string
   launchedDate: string
+  currentUserId: string
+  currentUserName: string | null
 }
 
 type MetricKey =
@@ -63,6 +72,7 @@ interface WeeklyReportRow {
   bottlenecks: string | null
   next_steps: string | null
   current_priorities: string | null
+  meeting_summary: string | null
 }
 
 type SaveStatus = 'idle' | 'editing' | 'saving' | 'saved'
@@ -238,6 +248,8 @@ export function SuccessTracking({
   clientId,
   clientName,
   launchedDate,
+  currentUserId,
+  currentUserName,
 }: SuccessTrackingProps) {
   const supabase = useMemo(() => createClient(), [])
   const launchedAt = useMemo(() => parseLocalDate(launchedDate), [launchedDate])
@@ -246,22 +258,26 @@ export function SuccessTracking({
     [launchedAt]
   )
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [reportsByWeek, setReportsByWeek] = useState<
     Map<number, WeeklyReportRow>
   >(new Map())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  // Track which week is expanded (for sidebar sync)
+  const [activeWeekNum, setActiveWeekNum] = useState<number | null>(thisWeekNum)
+  // Mobile popup
+  const [popupWeekNum, setPopupWeekNum] = useState<number | null>(null)
+
   useEffect(() => {
     let cancelled = false
     async function init() {
       setLoading(true)
       setLoadError(null)
-      const [{ data: userData }, { data, error }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.from('weekly_reports').select('*').eq('client_id', clientId),
-      ])
+      const { data, error } = await supabase
+        .from('weekly_reports')
+        .select('*')
+        .eq('client_id', clientId)
       if (cancelled) return
       if (error) {
         setLoadError(error.message)
@@ -272,7 +288,6 @@ export function SuccessTracking({
         }
         setReportsByWeek(m)
       }
-      setCurrentUserId(userData.user?.id ?? null)
       setLoading(false)
     }
     init()
@@ -280,6 +295,13 @@ export function SuccessTracking({
       cancelled = true
     }
   }, [clientId, supabase])
+
+  const handleExpandedChange = useCallback(
+    (weekNum: number, expanded: boolean) => {
+      setActiveWeekNum(expanded ? weekNum : null)
+    },
+    []
+  )
 
   if (loading) {
     return (
@@ -302,25 +324,88 @@ export function SuccessTracking({
   const weeks: number[] = []
   for (let w = thisWeekNum; w >= 1; w--) weeks.push(w)
 
+  // Active week info for sidebar
+  const activeRange = activeWeekNum
+    ? weekRange(launchedAt, activeWeekNum)
+    : null
+  const activeWeekLabel = activeRange
+    ? `Week ${activeWeekNum} — ${formatRange(activeRange.start, activeRange.end)}`
+    : ''
+
+  // Popup week info
+  const popupRange = popupWeekNum
+    ? weekRange(launchedAt, popupWeekNum)
+    : null
+  const popupWeekLabel = popupRange
+    ? `Week ${popupWeekNum} — ${formatRange(popupRange.start, popupRange.end)}`
+    : ''
+
   return (
-    <div className="space-y-4">
-      {weeks.map((w) => {
-        const { start, end } = weekRange(launchedAt, w)
-        return (
-          <WeekCard
-            key={w}
-            clientId={clientId}
-            clientName={clientName}
-            currentUserId={currentUserId}
-            weekNum={w}
-            weekStart={start}
-            weekEnd={end}
-            initialReport={reportsByWeek.get(w) ?? null}
-            defaultExpanded={w === thisWeekNum}
-          />
-        )
-      })}
-    </div>
+    <>
+      <div className="flex gap-6 items-start">
+        {/* Week cards */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {weeks.map((w) => {
+            const { start, end } = weekRange(launchedAt, w)
+            return (
+              <WeekCard
+                key={w}
+                clientId={clientId}
+                clientName={clientName}
+                currentUserId={currentUserId}
+                weekNum={w}
+                weekStart={start}
+                weekEnd={end}
+                initialReport={reportsByWeek.get(w) ?? null}
+                defaultExpanded={w === thisWeekNum}
+                onExpandedChange={handleExpandedChange}
+                onOpenNotesPopup={() => setPopupWeekNum(w)}
+              />
+            )
+          })}
+        </div>
+
+        {/* Sticky sidebar (desktop only) */}
+        <div className="hidden xl:block w-[380px] shrink-0 sticky top-6">
+          {activeWeekNum && activeRange ? (
+            <div>
+              <p
+                className="text-kst-gold text-sm font-semibold mb-3"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {activeWeekLabel}
+              </p>
+              <WeekNotesSidebar
+                key={activeWeekNum}
+                clientId={clientId}
+                weekNum={activeWeekNum}
+                weekLabel={activeWeekLabel}
+                meetingSummary=""
+                onMeetingSummaryChange={() => {}}
+                currentUserId={currentUserId}
+                currentUserName={currentUserName}
+              />
+            </div>
+          ) : (
+            <WeekNotesSidebarEmpty />
+          )}
+        </div>
+      </div>
+
+      {/* Mobile fullscreen popup */}
+      {popupWeekNum && popupRange && (
+        <WeekNotesPopup
+          clientId={clientId}
+          weekNum={popupWeekNum}
+          weekLabel={popupWeekLabel}
+          meetingSummary=""
+          onMeetingSummaryChange={() => {}}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          onClose={() => setPopupWeekNum(null)}
+        />
+      )}
+    </>
   )
 }
 
@@ -331,12 +416,14 @@ export function SuccessTracking({
 interface WeekCardProps {
   clientId: string
   clientName?: string
-  currentUserId: string | null
+  currentUserId: string
   weekNum: number
   weekStart: Date
   weekEnd: Date
   initialReport: WeeklyReportRow | null
   defaultExpanded: boolean
+  onExpandedChange: (weekNum: number, expanded: boolean) => void
+  onOpenNotesPopup: () => void
 }
 
 function WeekCard({
@@ -348,6 +435,8 @@ function WeekCard({
   weekEnd,
   initialReport,
   defaultExpanded,
+  onExpandedChange,
+  onOpenNotesPopup,
 }: WeekCardProps) {
   const supabase = useMemo(() => createClient(), [])
 
@@ -379,6 +468,12 @@ function WeekCard({
   const [saveError, setSaveError] = useState<string | null>(null)
   const dirtyRef = useRef(false)
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function toggleExpanded() {
+    const next = !expanded
+    setExpanded(next)
+    onExpandedChange(weekNum, next)
+  }
 
   // Numeric metrics for live calculations
   const metricNums = useMemo(() => {
@@ -539,7 +634,7 @@ function WeekCard({
       {/* Header (always visible, click to expand) */}
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={toggleExpanded}
         className="w-full flex items-start justify-between gap-4 px-6 py-5 text-left hover:bg-white/[0.02] transition-colors"
       >
         <div className="min-w-0 flex-1">
@@ -567,6 +662,25 @@ function WeekCard({
         </div>
         <div className="flex items-center gap-3 shrink-0 mt-1">
           <SaveIndicator status={saveStatus} />
+          {/* Mobile notes icon */}
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenNotesPopup()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                onOpenNotesPopup()
+              }
+            }}
+            className="xl:hidden p-1.5 rounded-lg hover:bg-white/[0.06] text-kst-muted hover:text-kst-gold transition-colors"
+            title="Meeting Notes & Team Notes"
+          >
+            <MessageSquare size={15} />
+          </span>
           <ChevronDown
             size={16}
             className={cn(
