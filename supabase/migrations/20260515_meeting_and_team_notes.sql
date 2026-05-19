@@ -22,5 +22,5 @@ alter table team_notes enable row level security;
 drop policy if exists "Authenticated users can manage team notes" on team_notes;
 create policy "Authenticated users can manage team notes"
   on team_notes for all
-  using (auth.role() = 'authenticated')
-  with check (auth.role() = 'authenticated');
+  using (auth.uid() is not null)
+  with check (auth.uid() is not null);

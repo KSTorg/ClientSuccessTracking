@@ -273,7 +273,10 @@ function TeamNotesSection({
       .select()
       .single()
     setSaving(false)
-    if (error || !data) return
+    if (error || !data) {
+      console.error('[TeamNotes] insert failed:', error)
+      return
+    }
     setNotes((prev) => [data as TeamNote, ...prev])
     setNewContent('')
     setAdding(false)
