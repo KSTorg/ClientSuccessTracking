@@ -162,15 +162,17 @@ function MeetingSummarySection({
 
   const doSave = useCallback(async (content: string) => {
     setSaveStatus('saving')
-    await supabase.from('weekly_reports').upsert(
-      {
-        client_id: clientId,
-        week_number: weekNum,
-        meeting_summary: content.trim() || null,
-      },
-      { onConflict: 'client_id,week_number' }
-    )
+    const { error } = await supabase
+      .from('weekly_reports')
+      .update({ meeting_summary: content.trim() || null })
+      .eq('client_id', clientId)
+      .eq('week_number', weekNum)
     dirtyRef.current = false
+    if (error) {
+      console.error('[MeetingSummary] save failed:', error)
+      setSaveStatus('idle')
+      return
+    }
     setSaveStatus('saved')
     if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
     fadeTimerRef.current = setTimeout(() => {
