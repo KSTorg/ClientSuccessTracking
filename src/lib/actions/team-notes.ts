@@ -1,9 +1,16 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
 
 export async function fetchTeamNotes(clientId: string, weekNum: number) {
-  const supabase = await createClient()
+  const supabase = adminClient()
   const { data, error } = await supabase
     .from('team_notes')
     .select('*')
@@ -24,7 +31,7 @@ export async function addTeamNote(
   authorName: string | null,
   createdBy: string | null,
 ) {
-  const supabase = await createClient()
+  const supabase = adminClient()
   const { data, error } = await supabase
     .from('team_notes')
     .insert({
@@ -44,7 +51,7 @@ export async function addTeamNote(
 }
 
 export async function deleteTeamNote(id: string) {
-  const supabase = await createClient()
+  const supabase = adminClient()
   const { error } = await supabase.from('team_notes').delete().eq('id', id)
   if (error) {
     console.error('[TeamNotes] delete failed:', error)
