@@ -261,25 +261,35 @@ function TeamNotesSection({
   async function handleAdd() {
     if (!newContent.trim()) return
     setSaving(true)
-    const { data, error } = await supabase
-      .from('team_notes')
-      .insert({
+    try {
+      const payload = {
         client_id: clientId,
         week_number: weekNum,
         content: newContent.trim(),
         author_name: currentUserName,
         created_by: currentUserId,
-      })
-      .select()
-      .single()
-    setSaving(false)
-    if (error || !data) {
-      console.error('[TeamNotes] insert failed:', error)
-      return
+      }
+      console.log('[TeamNotes] inserting:', payload)
+      const { data, error } = await supabase
+        .from('team_notes')
+        .insert(payload)
+        .select()
+        .single()
+      setSaving(false)
+      if (error || !data) {
+        console.error('[TeamNotes] insert failed:', error)
+        alert(`Team note save failed: ${error?.message ?? 'No data returned'}`)
+        return
+      }
+      console.log('[TeamNotes] insert success:', data)
+      setNotes((prev) => [data as TeamNote, ...prev])
+      setNewContent('')
+      setAdding(false)
+    } catch (err) {
+      setSaving(false)
+      console.error('[TeamNotes] unexpected error:', err)
+      alert(`Team note error: ${err}`)
     }
-    setNotes((prev) => [data as TeamNote, ...prev])
-    setNewContent('')
-    setAdding(false)
   }
 
   async function handleDelete(id: string) {
