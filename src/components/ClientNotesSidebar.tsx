@@ -17,6 +17,11 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import {
+  fetchTeamNotes,
+  addTeamNote,
+  deleteTeamNote,
+} from '@/lib/actions/team-notes'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -231,7 +236,6 @@ function TeamNotesSection({
   currentUserId: string | null
   currentUserName: string | null
 }) {
-  const supabase = useMemo(() => createClient(), [])
   const [notes, setNotes] = useState<TeamNote[]>([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -241,60 +245,40 @@ function TeamNotesSection({
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    supabase
-      .from('team_notes')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('week_number', weekNum)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (!cancelled) {
-          setNotes((data ?? []) as TeamNote[])
-          setLoading(false)
-        }
-      })
+    fetchTeamNotes(clientId, weekNum).then(({ data }) => {
+      if (!cancelled) {
+        setNotes((data ?? []) as TeamNote[])
+        setLoading(false)
+      }
+    })
     return () => {
       cancelled = true
     }
-  }, [clientId, weekNum, supabase])
+  }, [clientId, weekNum])
 
   async function handleAdd() {
     if (!newContent.trim()) return
     setSaving(true)
-    try {
-      const payload = {
-        client_id: clientId,
-        week_number: weekNum,
-        content: newContent.trim(),
-        author_name: currentUserName,
-        created_by: currentUserId,
-      }
-      console.log('[TeamNotes] inserting:', payload)
-      const { data, error } = await supabase
-        .from('team_notes')
-        .insert(payload)
-        .select()
-        .single()
-      setSaving(false)
-      if (error || !data) {
-        console.error('[TeamNotes] insert failed:', error)
-        alert(`Team note save failed: ${error?.message ?? 'No data returned'}`)
-        return
-      }
-      console.log('[TeamNotes] insert success:', data)
-      setNotes((prev) => [data as TeamNote, ...prev])
-      setNewContent('')
-      setAdding(false)
-    } catch (err) {
-      setSaving(false)
-      console.error('[TeamNotes] unexpected error:', err)
-      alert(`Team note error: ${err}`)
+    const { data, error } = await addTeamNote(
+      clientId,
+      weekNum,
+      newContent.trim(),
+      currentUserName,
+      currentUserId,
+    )
+    setSaving(false)
+    if (error || !data) {
+      console.error('[TeamNotes] insert failed:', error)
+      return
     }
+    setNotes((prev) => [data as TeamNote, ...prev])
+    setNewContent('')
+    setAdding(false)
   }
 
   async function handleDelete(id: string) {
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    await supabase.from('team_notes').delete().eq('id', id)
+    await deleteTeamNote(id)
   }
 
   return (
