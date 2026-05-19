@@ -11,7 +11,7 @@ create table if not exists team_notes (
   week_number integer not null,
   content text not null default '',
   author_name text,
-  created_by uuid references auth.users(id) on delete set null,
+  created_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
