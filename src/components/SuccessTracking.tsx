@@ -296,9 +296,9 @@ export function SuccessTracking({
     }
   }, [clientId, supabase])
 
-  const handleExpandedChange = useCallback(
-    (weekNum: number, expanded: boolean) => {
-      setActiveWeekNum(expanded ? weekNum : null)
+  const handleToggleWeek = useCallback(
+    (weekNum: number) => {
+      setActiveWeekNum((prev) => (prev === weekNum ? null : weekNum))
     },
     []
   )
@@ -357,8 +357,8 @@ export function SuccessTracking({
                 weekStart={start}
                 weekEnd={end}
                 initialReport={reportsByWeek.get(w) ?? null}
-                defaultExpanded={w === thisWeekNum}
-                onExpandedChange={handleExpandedChange}
+                expanded={activeWeekNum === w}
+                onToggleExpanded={() => handleToggleWeek(w)}
                 onOpenNotesPopup={() => setPopupWeekNum(w)}
               />
             )
@@ -417,8 +417,8 @@ interface WeekCardProps {
   weekStart: Date
   weekEnd: Date
   initialReport: WeeklyReportRow | null
-  defaultExpanded: boolean
-  onExpandedChange: (weekNum: number, expanded: boolean) => void
+  expanded: boolean
+  onToggleExpanded: () => void
   onOpenNotesPopup: () => void
 }
 
@@ -430,13 +430,12 @@ function WeekCard({
   weekStart,
   weekEnd,
   initialReport,
-  defaultExpanded,
-  onExpandedChange,
+  expanded,
+  onToggleExpanded,
   onOpenNotesPopup,
 }: WeekCardProps) {
   const supabase = useMemo(() => createClient(), [])
 
-  const [expanded, setExpanded] = useState(defaultExpanded)
   const [reportExists, setReportExists] = useState(!!initialReport)
 
   const [metricInputs, setMetricInputs] = useState<Record<string, string>>(
@@ -466,9 +465,7 @@ function WeekCard({
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function toggleExpanded() {
-    const next = !expanded
-    setExpanded(next)
-    onExpandedChange(weekNum, next)
+    onToggleExpanded()
   }
 
   // Numeric metrics for live calculations
