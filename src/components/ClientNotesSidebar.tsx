@@ -1,29 +1,34 @@
 'use client'
 
 import {
-  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
 } from 'react'
 import {
+  ChevronDown,
+  ChevronRight,
   FileText,
   MessageSquare,
   Plus,
   Trash2,
   X,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-import {
-  fetchTeamNotes,
-  addTeamNote,
-  deleteTeamNote,
-} from '@/lib/actions/team-notes'
 
 // ─── Types ────────────────────────────────────────────────────────────────
+
+interface MeetingSummary {
+  id: string
+  client_id: string
+  week_number: number
+  title: string
+  content: string
+  author_name: string | null
+  created_by: string | null
+  created_at: string
+}
 
 interface TeamNote {
   id: string
@@ -39,10 +44,6 @@ export interface WeekNotesSidebarProps {
   clientId: string
   weekNum: number
   weekLabel: string
-  /** unused — meeting summary is self-fetched */
-  meetingSummary?: string
-  /** unused — meeting summary is self-saved */
-  onMeetingSummaryChange?: (value: string) => void
   currentUserId: string | null
   currentUserName: string | null
 }
@@ -57,7 +58,7 @@ export function WeekNotesSidebar({
 }: WeekNotesSidebarProps) {
   return (
     <div className="space-y-4">
-      <MeetingSummarySection clientId={clientId} weekNum={weekNum} />
+      <MeetingSummarySection clientId={clientId} weekNum={weekNum} currentUserId={currentUserId} currentUserName={currentUserName} />
       <TeamNotesSection
         clientId={clientId}
         weekNum={weekNum}
@@ -125,101 +126,275 @@ export function WeekNotesPopup({
   )
 }
 
-// ─── Meeting Summary (self-contained: fetches + saves to weekly_reports) ──
+// ─── Meeting Summaries (multiple per week, collapsible) ───────────────────
 
 function MeetingSummarySection({
   clientId,
   weekNum,
+  currentUserId,
+  currentUserName,
 }: {
   clientId: string
   weekNum: number
+  currentUserId: string | null
+  currentUserName: string | null
 }) {
-  const supabase = useMemo(() => createClient(), [])
-  const [value, setValue] = useState('')
+  const [entries, setEntries] = useState<MeetingSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const dirtyRef = useRef(false)
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // Fetch current meeting_summary for this week
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    supabase
-      .from('weekly_reports')
-      .select('meeting_summary')
-      .eq('client_id', clientId)
-      .eq('week_number', weekNum)
-      .maybeSingle()
-      .then(({ data }) => {
+    fetch(`/api/meeting-summaries?clientId=${clientId}&weekNum=${weekNum}`)
+      .then((r) => r.json())
+      .then((json) => {
         if (!cancelled) {
-          setValue((data as { meeting_summary: string | null } | null)?.meeting_summary ?? '')
+          setEntries((json.data ?? []) as MeetingSummary[])
           setLoading(false)
         }
       })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => { cancelled = true }
-  }, [clientId, weekNum, supabase])
-
-  const doSave = useCallback(async (content: string) => {
-    setSaveStatus('saving')
-    const { error } = await supabase
-      .from('weekly_reports')
-      .update({ meeting_summary: content.trim() || null })
-      .eq('client_id', clientId)
-      .eq('week_number', weekNum)
-    dirtyRef.current = false
-    if (error) {
-      console.error('[MeetingSummary] save failed:', error)
-      setSaveStatus('idle')
-      return
-    }
-    setSaveStatus('saved')
-    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
-    fadeTimerRef.current = setTimeout(() => {
-      setSaveStatus((s) => (s === 'saved' ? 'idle' : s))
-    }, 2000)
-  }, [clientId, weekNum, supabase])
-
-  // Debounced save
-  useEffect(() => {
-    if (!dirtyRef.current) return
-    const t = setTimeout(() => doSave(value), 1500)
-    return () => clearTimeout(t)
-  }, [value, doSave])
-
-  useEffect(() => {
-    return () => {
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current)
-    }
-  }, [])
-
-  function handleChange(e: ChangeEvent<HTMLTextAreaElement>) {
-    dirtyRef.current = true
-    setValue(e.target.value)
-  }
+  }, [clientId, weekNum])
 
   return (
     <div className="glass-panel p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="flex items-center gap-2 text-kst-white font-semibold">
           <MessageSquare size={16} className="text-kst-gold" />
-          Meeting Summary
+          Meeting Summaries
         </h3>
-        {saveStatus === 'saving' && (
-          <span className="text-[11px] text-kst-muted">Saving…</span>
-        )}
-        {saveStatus === 'saved' && (
-          <span className="text-[11px] text-kst-success kst-fade-in">Saved</span>
-        )}
+        <button
+          type="button"
+          onClick={() => setAdding((v) => !v)}
+          className="p-1.5 rounded-lg hover:bg-white/[0.06] text-kst-muted hover:text-kst-gold transition-colors"
+        >
+          <Plus size={16} />
+        </button>
       </div>
+
+      {adding && (
+        <MeetingSummaryAddForm
+          clientId={clientId}
+          weekNum={weekNum}
+          currentUserId={currentUserId}
+          currentUserName={currentUserName}
+          onAdded={(entry) => {
+            setEntries((prev) => [entry, ...prev])
+            setAdding(false)
+            setExpandedId(entry.id)
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      )}
+
       {loading ? (
         <p className="text-kst-muted text-xs">Loading...</p>
+      ) : entries.length === 0 && !adding ? (
+        <p className="text-kst-muted text-xs">No meeting summaries yet.</p>
       ) : (
-        <AutoTextarea
-          value={value}
-          onChange={handleChange}
-          placeholder="Paste meeting notes here..."
-        />
+        <div className="space-y-1">
+          {entries.map((entry) => (
+            <MeetingSummaryEntry
+              key={entry.id}
+              entry={entry}
+              expanded={expandedId === entry.id}
+              onToggle={() =>
+                setExpandedId((prev) => (prev === entry.id ? null : entry.id))
+              }
+              onDelete={() =>
+                setEntries((prev) => prev.filter((e) => e.id !== entry.id))
+              }
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MeetingSummaryAddForm({
+  clientId,
+  weekNum,
+  currentUserId,
+  currentUserName,
+  onAdded,
+  onCancel,
+}: {
+  clientId: string
+  weekNum: number
+  currentUserId: string | null
+  currentUserName: string | null
+  onAdded: (entry: MeetingSummary) => void
+  onCancel: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!content.trim()) return
+    setSaving(true)
+    const res = await fetch('/api/meeting-summaries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId,
+        weekNum,
+        title: title.trim() || 'Call',
+        content: content.trim(),
+        authorName: currentUserName,
+        createdBy: currentUserId,
+      }),
+    })
+    const json = await res.json()
+    setSaving(false)
+    if (!res.ok || !json.data) return
+    onAdded(json.data as MeetingSummary)
+  }
+
+  return (
+    <div className="mb-3 p-4 rounded-xl bg-kst-dark border border-white/10 space-y-3">
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (e.g. Call May 18)"
+        className="w-full px-3 py-2 rounded-lg bg-kst-dark border border-white/10 text-kst-white placeholder:text-kst-muted text-sm focus:outline-none focus:border-kst-gold/60 transition-colors"
+      />
+      <AutoTextarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder="Paste meeting notes here..."
+      />
+      <div className="flex items-center gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 h-8 rounded-lg text-kst-muted text-xs hover:text-kst-white transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !content.trim()}
+          className="px-3 h-8 rounded-lg bg-kst-gold text-kst-black font-semibold text-xs hover:bg-kst-gold-light transition-colors disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Add'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function MeetingSummaryEntry({
+  entry,
+  expanded,
+  onToggle,
+  onDelete,
+}: {
+  entry: MeetingSummary
+  expanded: boolean
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  const dateLabel = new Date(entry.created_at).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [content, setContent] = useState(entry.content)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const dirtyRef = useRef(false)
+
+  useEffect(() => {
+    if (!dirtyRef.current) return
+    const t = setTimeout(async () => {
+      setSaveStatus('saving')
+      await fetch('/api/meeting-summaries', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entry.id, content: content.trim() }),
+      })
+      dirtyRef.current = false
+      setSaveStatus('saved')
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => {
+        setSaveStatus((s) => (s === 'saved' ? 'idle' : s))
+      }, 2000)
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [content, entry.id])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [])
+
+  function handleDelete() {
+    fetch(`/api/meeting-summaries?id=${entry.id}`, { method: 'DELETE' })
+    onDelete()
+  }
+
+  // Preview: first line or first 80 chars
+  const preview = entry.content.split('\n')[0]?.slice(0, 80) || 'Empty'
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-white/[0.03] transition-colors text-left"
+      >
+        {expanded ? (
+          <ChevronDown size={14} className="text-kst-muted shrink-0" />
+        ) : (
+          <ChevronRight size={14} className="text-kst-muted shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <span className="text-kst-white text-sm font-medium">
+            {entry.title}
+          </span>
+          <span className="text-kst-muted text-xs ml-2">{dateLabel}</span>
+          {!expanded && (
+            <p className="text-kst-muted text-xs truncate mt-0.5">{preview}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {saveStatus === 'saving' && (
+            <span className="text-[11px] text-kst-muted">Saving…</span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-[11px] text-kst-success">Saved</span>
+          )}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4 space-y-2">
+          <AutoTextarea
+            value={content}
+            onChange={(e) => {
+              dirtyRef.current = true
+              setContent(e.target.value)
+            }}
+            placeholder="Meeting notes..."
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-kst-muted hover:text-kst-error hover:bg-kst-error/10 transition-colors"
+            >
+              <Trash2 size={12} /> Delete
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -243,16 +418,27 @@ function TeamNotesSection({
   const [adding, setAdding] = useState(false)
   const [newContent, setNewContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [uiError, setUiError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchTeamNotes(clientId, weekNum).then(({ data }) => {
-      if (!cancelled) {
-        setNotes((data ?? []) as TeamNote[])
-        setLoading(false)
-      }
-    })
+    setUiError(null)
+    fetch(`/api/team-notes?clientId=${clientId}&weekNum=${weekNum}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) {
+          if (json.error) setUiError(`Fetch: ${json.error}`)
+          setNotes((json.data ?? []) as TeamNote[])
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setUiError(`Fetch crash: ${err}`)
+          setLoading(false)
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -260,27 +446,38 @@ function TeamNotesSection({
 
   async function handleAdd() {
     if (!newContent.trim()) return
+    setUiError(null)
     setSaving(true)
-    const { data, error } = await addTeamNote(
-      clientId,
-      weekNum,
-      newContent.trim(),
-      currentUserName,
-      currentUserId,
-    )
-    setSaving(false)
-    if (error || !data) {
-      console.error('[TeamNotes] insert failed:', error)
-      return
+    try {
+      const res = await fetch('/api/team-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId,
+          weekNum,
+          content: newContent.trim(),
+          authorName: currentUserName,
+          createdBy: currentUserId,
+        }),
+      })
+      const json = await res.json()
+      setSaving(false)
+      if (!res.ok || json.error || !json.data) {
+        setUiError(`Save: ${json.error ?? `HTTP ${res.status}`}`)
+        return
+      }
+      setNotes((prev) => [json.data as TeamNote, ...prev])
+      setNewContent('')
+      setAdding(false)
+    } catch (err) {
+      setSaving(false)
+      setUiError(`Save crash: ${err}`)
     }
-    setNotes((prev) => [data as TeamNote, ...prev])
-    setNewContent('')
-    setAdding(false)
   }
 
   async function handleDelete(id: string) {
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    await deleteTeamNote(id)
+    fetch(`/api/team-notes?id=${id}`, { method: 'DELETE' })
   }
 
   return (
@@ -298,6 +495,12 @@ function TeamNotesSection({
           <Plus size={16} />
         </button>
       </div>
+
+      {uiError && (
+        <p className="text-red-400 text-xs mb-2 p-2 bg-red-500/10 rounded-lg break-all">
+          {uiError}
+        </p>
+      )}
 
       {adding && (
         <div className="mb-4 p-4 rounded-xl bg-kst-dark border border-white/10 space-y-3">

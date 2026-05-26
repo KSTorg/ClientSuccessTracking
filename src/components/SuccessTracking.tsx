@@ -380,8 +380,6 @@ export function SuccessTracking({
                 clientId={clientId}
                 weekNum={activeWeekNum}
                 weekLabel={activeWeekLabel}
-                meetingSummary=""
-                onMeetingSummaryChange={() => {}}
                 currentUserId={currentUserId}
                 currentUserName={currentUserName}
               />
@@ -398,8 +396,6 @@ export function SuccessTracking({
           clientId={clientId}
           weekNum={popupWeekNum}
           weekLabel={popupWeekLabel}
-          meetingSummary=""
-          onMeetingSummaryChange={() => {}}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
           onClose={() => setPopupWeekNum(null)}

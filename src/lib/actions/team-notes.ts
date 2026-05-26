@@ -31,6 +31,9 @@ export async function addTeamNote(
   authorName: string | null,
   createdBy: string | null,
 ) {
+  console.log('[TeamNotes SERVER] addTeamNote called:', { clientId, weekNum, content, authorName, createdBy })
+  console.log('[TeamNotes SERVER] SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING')
+  console.log('[TeamNotes SERVER] SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING')
   const supabase = adminClient()
   const { data, error } = await supabase
     .from('team_notes')
@@ -43,6 +46,7 @@ export async function addTeamNote(
     })
     .select()
     .single()
+  console.log('[TeamNotes SERVER] result:', { data, error })
   if (error) {
     console.error('[TeamNotes] insert failed:', error)
     return { data: null, error: error.message }
