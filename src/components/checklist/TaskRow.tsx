@@ -172,7 +172,7 @@ export function TopLevelTask({
             className="min-w-0 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            {!hasSubs && !hideLinks && (
+            {!hideLinks && (
               <TaskLinks task={ct.task} program={program} />
             )}
             {!hasSubs && (
