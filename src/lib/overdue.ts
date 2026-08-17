@@ -47,10 +47,11 @@ export async function getClientBlockers(
 ): Promise<BlockersResult> {
   const today = todayLocalIso()
 
-  // Fetch clients (all or one)
+  // Fetch clients (all or one); churned clients never produce blockers
   let clientQuery = supabaseAdmin
     .from('clients')
     .select('id, company_name, contact_name, program, client_team, assigned_csm, is_imported')
+    .neq('status', 'churned')
   if (options.clientId) {
     clientQuery = clientQuery.eq('id', options.clientId)
   }

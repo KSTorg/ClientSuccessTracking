@@ -60,10 +60,20 @@ export async function POST(request: NextRequest) {
     // Look up client for the display name + contact
     const { data: clientRow } = await supabaseAdmin
       .from('clients')
-      .select('company_name, contact_name')
+      .select('company_name, contact_name, status')
       .eq('id', clientId)
       .maybeSingle()
-    const cl = clientRow as { company_name: string | null; contact_name: string | null } | null
+    const cl = clientRow as {
+      company_name: string | null
+      contact_name: string | null
+      status: string | null
+    } | null
+
+    // Churned clients get no task notifications
+    if (cl?.status === 'churned') {
+      return NextResponse.json({ success: true, state: 'churned_skipped' })
+    }
+
     const companyName = cl?.company_name ?? 'Client'
     const contactName = cl?.contact_name ?? null
     const displayName = clientLabel(companyName, contactName)

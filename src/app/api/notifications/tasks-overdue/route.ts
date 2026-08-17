@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
       .from('clients')
       .select('id, company_name, contact_name, program, program_end_date, client_team, assigned_csm')
       .in('program_end_date', [in3Str, in7Str])
+      .neq('status', 'churned')
 
     if (endingSoon && endingSoon.length > 0) {
       const endClients = endingSoon as Array<{
@@ -308,7 +309,7 @@ export async function POST(request: NextRequest) {
         const launchPlus30 = new Date(c.launched_date)
         launchPlus30.setDate(launchPlus30.getDate() + 30)
 
-        let endMinus10: Date | null = c.program_end_date
+        const endMinus10: Date | null = c.program_end_date
           ? new Date(c.program_end_date)
           : null
         if (endMinus10) endMinus10.setDate(endMinus10.getDate() - 10)
