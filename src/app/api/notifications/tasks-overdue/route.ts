@@ -10,6 +10,10 @@ import {
   type ClientBlockers,
 } from '@/lib/overdue'
 
+// A client whose program ended this many days ago with no active
+// subscriptions is presumed churned and dropped from the daily reports.
+const CHURN_PRESUMED_AFTER_DAYS = 30
+
 function buildEmbed(
   clientBlockers: ClientBlockers[],
   totalClients: number
@@ -98,12 +102,43 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { blockers, totalClients } = await getClientBlockers(supabaseAdmin)
+    const todayStr = new Date().toISOString().slice(0, 10)
+
+    // ── Churn risk, fetched first: clients whose program ended with no
+    // active subscriptions and who are not marked churned. They are kept
+    // out of the Tasks Overdue report (the Churn Risk embed covers them),
+    // and once the program has been over for CHURN_PRESUMED_AFTER_DAYS
+    // they are presumed churned and leave the daily reports entirely. ──
+    const presumedChurnCutoff = new Date()
+    presumedChurnCutoff.setDate(
+      presumedChurnCutoff.getDate() - CHURN_PRESUMED_AFTER_DAYS
+    )
+    const presumedChurnCutoffStr = presumedChurnCutoff
+      .toISOString()
+      .slice(0, 10)
+
+    const { data: churnRisk } = await supabaseAdmin
+      .from('analytics_churn_risk')
+      .select('company_name, program_end_date, client_id')
+      .eq('risk_level', 'at_risk')
+
+    const atRiskAll = (churnRisk ?? []) as Array<{
+      company_name: string
+      program_end_date: string | null
+      client_id: string
+    }>
+    const atRiskIds = new Set(atRiskAll.map((c) => c.client_id))
+    const riskClients = atRiskAll.filter(
+      (c) => c.program_end_date && c.program_end_date >= presumedChurnCutoffStr
+    )
+
+    const { blockers, totalClients } = await getClientBlockers(supabaseAdmin, {
+      excludeClientIds: atRiskIds,
+    })
     const { embeds, content } = buildEmbed(blockers, totalClients)
     await sendDiscordEmbed(embeds, content)
 
     // ── Programs ending in exactly 7 or 3 days ──
-    const todayStr = new Date().toISOString().slice(0, 10)
     const in3 = new Date()
     in3.setDate(in3.getDate() + 3)
     const in3Str = in3.toISOString().slice(0, 10)
@@ -196,18 +231,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ── Churn risk: program ended, no active subs, not churned ──
-    const { data: churnRisk } = await supabaseAdmin
-      .from('analytics_churn_risk')
-      .select('company_name, program_end_date, client_id')
-      .eq('risk_level', 'at_risk')
-
-    if (churnRisk && churnRisk.length > 0) {
-      const riskClients = churnRisk as Array<{
-        company_name: string
-        program_end_date: string | null
-        client_id: string
-      }>
+    // ── Churn risk embed: recently at-risk clients (fetched above) ──
+    if (riskClients.length > 0) {
       const riskClientIds = riskClients.map((c) => c.client_id)
 
       // Batch fetch: clients, profiles, contacts
@@ -277,6 +302,9 @@ export async function POST(request: NextRequest) {
         title: '⚠️ Churn Risk — No Active Subscriptions',
         description: riskLines.join('\n'),
         color: COLORS.gold,
+        footer: {
+          text: `Programs ended in the last ${CHURN_PRESUMED_AFTER_DAYS} days — older clients are presumed churned and no longer reported`,
+        },
         timestamp: new Date().toISOString(),
       }
       await sendDiscordEmbed(

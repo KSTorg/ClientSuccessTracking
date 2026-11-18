@@ -39,11 +39,13 @@ function todayLocalIso(): string {
  * (has_subtasks=true) are skipped — we only report leaf work items.
  *
  * Pass `clientId` to scope the computation to a single client (used by
- * the real-time task-completed notification).
+ * the real-time task-completed notification). Pass `excludeClientIds` to
+ * drop specific clients from both the blockers and the totals (used by
+ * the daily report to skip churn-risk clients).
  */
 export async function getClientBlockers(
   supabaseAdmin: SupabaseClient,
-  options: { clientId?: string } = {}
+  options: { clientId?: string; excludeClientIds?: ReadonlySet<string> } = {}
 ): Promise<BlockersResult> {
   const today = todayLocalIso()
 
@@ -69,7 +71,9 @@ export async function getClientBlockers(
     client_team: Record<string, string | null> | null
     assigned_csm: string | null
     is_imported: boolean | null
-  }>).filter((c) => !c.is_imported)
+  }>).filter(
+    (c) => !c.is_imported && !options.excludeClientIds?.has(c.id)
+  )
 
   // Fetch overdue incomplete tasks for those clients
   let taskQuery = supabaseAdmin
